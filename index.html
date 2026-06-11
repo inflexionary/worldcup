@@ -1106,8 +1106,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-s
   margin-top:0;
 }
 .footer-logo-link{display:inline-block;margin-bottom:10px}
-.footer-logo{height:24px;width:auto;filter:invert(1) brightness(1);opacity:.75;transition:opacity .15s}
-.footer-logo-link:hover .footer-logo{opacity:1}
+.footer-logo{height:24px;width:auto;filter:brightness(0) invert(1);opacity:1;transition:opacity .15s}
+.footer-logo-link:hover .footer-logo{opacity:.85}
 .footer-credit{font-size:11px;color:var(--muted);line-height:1.6}
 .footer-credit a{color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border)}
 .footer-credit a:hover{color:var(--ink)}
@@ -1959,6 +1959,7 @@ footer .footer-credit { color: #5060a0; }
     <button class="tab-btn" onclick="switchTab('fixtures',this)"><i class="ph ph-soccer-ball"></i> Fixtures</button>
     <button class="tab-btn" onclick="switchTab('tables',this)"><i class="ph ph-table"></i> Tables</button>
     <button class="tab-btn" onclick="switchTab('knockout',this)"><i class="ph ph-graph"></i> Knockout</button>
+    <button class="tab-btn" onclick="switchTab('simulator',this)"><i class="ph ph-game-controller"></i> Simulator</button>
   </div>
 </div>
 
@@ -2181,6 +2182,48 @@ footer .footer-credit { color: #5060a0; }
     <div id="koDrawer" class="ko-drawer">
       <div id="koDrawerContent" class="ko-drawer-content">
         <div class="ko-drawer-empty"><i class="ph ph-cursor-click"></i><p>Hover a group, match or team</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-pane" id="pane-simulator">
+  <div class="sim-outer">
+    <div class="sim-board" id="simBoard">
+      <!-- Toggle between bracket and group tables -->
+      <div class="sim-view-toggle">
+        <button class="sim-view-btn active" data-view="bracket" onclick="window.__sim.setView('bracket')">
+          <i class="ph ph-tree-structure"></i><span>Knockout</span>
+        </button>
+        <button class="sim-view-btn" data-view="groups" onclick="window.__sim.setView('groups')">
+          <i class="ph ph-table"></i><span>Group Tables</span>
+        </button>
+      </div>
+
+      <!-- Bracket view -->
+      <div class="sim-view sim-view-bracket" id="simViewBracket">
+        <div class="sim-bracket-wrap">
+          <svg id="simBracketChart" width="1080" height="1080" viewBox="-540 -531 1080 1071"
+               style="width:100%;max-width:1080px;height:auto;display:block;margin:0 auto"></svg>
+          <div id="simBracketTooltip" class="bracket-tooltip"></div>
+        </div>
+      </div>
+
+      <!-- Group tables view -->
+      <div class="sim-view sim-view-groups" id="simViewGroups" style="display:none">
+        <div class="sim-groups-grid" id="simGroupsGrid"></div>
+        <div id="sim3rdPlaceWrap"></div>
+      </div>
+
+      <!-- Hidden drawer pair the bracket function writes its tooltips to;
+           we use our own simDrawer for sim controls. -->
+      <div id="simBracketHiddenDrawer" style="display:none;width:0;height:0;overflow:hidden;position:absolute">
+        <div id="simBracketHiddenDrawerContent"></div>
+      </div>
+    </div>
+    <div class="sim-drawer" id="simDrawer">
+      <div class="sim-drawer-content" id="simDrawerContent">
+        <!-- Filled by simulator JS -->
       </div>
     </div>
   </div>
@@ -2555,6 +2598,7 @@ function switchTab(name,btn){
   if(name==='fixtures'){ renderFixtures(); }
   if(name==='calendar'){ renderCalendar(); }
   if(name==='knockout'){ initKnockout(); document.getElementById('pane-knockout').scrollTop=0; window.scrollTo(0,0); }
+  if(name==='simulator'){ if(typeof initSimulator==='function') initSimulator(); document.getElementById('pane-simulator').scrollTop=0; window.scrollTo(0,0); }
   if(name==='overview'){ renderDashboard();
     document.querySelectorAll('#pane-overview .ani').forEach(el=>aniObs.observe(el));
   }
@@ -4776,6 +4820,7 @@ function buildMobileNav() {
     {id:'fixtures', icon:'ph-soccer-ball',       label:'Fixtures'},
     {id:'tables',   icon:'ph-table',             label:'Tables'},
     {id:'knockout',  icon:'ph-graph',             label:'Knockout'},
+    {id:'simulator', icon:'ph-game-controller',    label:'Sim'},
   ];
   nav.innerHTML = tabs.map(t => `
     <button class="bnav-btn${t.id==='overview'?' active':''}" data-tab="${t.id}"
@@ -5270,8 +5315,18 @@ function initKnockout() {
   }, 80);
 }
 
-function initBracketDraw() {
+function initBracketDraw(opts) {
 'use strict';
+
+opts = opts || {};
+const _MATCHES = opts.matches || MATCHES;
+const _MATCH_REPORTS = (opts.matchReports !== undefined) ? opts.matchReports : (typeof MATCH_REPORTS !== 'undefined' ? MATCH_REPORTS : {});
+const _SVG_ID = opts.svgId || 'bracketChart';
+const _TIP_ID = opts.tipId || 'bracketTooltip';
+const _DRAWER_ID = opts.drawerId || 'koDrawer';
+const _DRAWER_CONTENT_ID = opts.drawerContentId || 'koDrawerContent';
+const _ON_MATCH_CLICK = opts.onMatchClick || null;
+const _SUPPRESS_TIP = !!opts.suppressTip;
 const NS='http://www.w3.org/2000/svg';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -5297,6 +5352,35 @@ const STATE={
   thirdPlaceGroups:null,
 };
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// Update STATE.groupStandings from actual match data (group panels show real
+// standings as games come in). Groups with no games played keep their default
+// seeding order so the chart still looks ordered pre-tournament.
+'ABCDEFGHIJKL'.split('').forEach(g => {
+  const groupMs = _MATCHES.filter(m => m[7] === g);
+  const played = groupMs.filter(m => m[10] !== null && m[11] !== null);
+  if (played.length === 0) return;
+  const teamSet = new Set();
+  groupMs.forEach(m => { teamSet.add(m[5]); teamSet.add(m[6]); });
+  const st = {};
+  teamSet.forEach(t => { st[t] = { pts:0, gd:0, gf:0 }; });
+  played.forEach(m => {
+    const h = m[5], a = m[6], hs = m[10], as_ = m[11];
+    if (!st[h] || !st[a]) return;
+    st[h].gf += hs; st[h].gd += (hs - as_);
+    st[a].gf += as_; st[a].gd += (as_ - hs);
+    if (hs > as_) st[h].pts += 3;
+    else if (hs < as_) st[a].pts += 3;
+    else { st[h].pts++; st[a].pts++; }
+  });
+  const sorted = [...teamSet].sort((a, b) =>
+    (st[b].pts - st[a].pts) || (st[b].gd - st[a].gd) || (st[b].gf - st[a].gf)
+  );
+  STATE.groupStandings[g] = {
+    teams: sorted,
+    locked: groupMs.every(m => m[10] !== null && m[11] !== null)
+  };
+});
 
 const GC={A:'#4E79C4',B:'#3A9FBF',C:'#2BB8A0',D:'#4DC47A',E:'#93C940',F:'#F2C12E',G:'#F4903A',H:'#E85D3A',I:'#D63F6A',J:'#B83FA8',K:'#7F52C4',L:'#5E63C8'};
 const GROUPS=Object.keys(GC);
@@ -5370,8 +5454,11 @@ const PA={};GROUPS.forEach((g,i)=>{PA[g]=i*30;});
 const N=32;
 const sa=i=>i*(360/N);
 
-const bracketSvg=document.getElementById('bracketChart'); const svg=bracketSvg;
-const tipEl=document.getElementById('bracketTooltip');
+const bracketSvg=document.getElementById(_SVG_ID); const svg=bracketSvg;
+// Allow re-running the function on the same SVG (e.g. simulator re-render):
+// wipe any previously-drawn content first.
+if (bracketSvg) { while (bracketSvg.firstChild) bracketSvg.removeChild(bracketSvg.firstChild); }
+const tipEl=document.getElementById(_TIP_ID);
 
 function mk(tag,a,p){
   const e=document.createElementNS(NS,tag);
@@ -5513,7 +5600,7 @@ for(let i=0;i<2;i++){
 // This is the only reliable mapping because MATCHES uses consistent team name strings.
 const _teamToGroup = {};
 'ABCDEFGHIJKL'.split('').forEach(g => {
-  MATCHES.filter(m=>m[7]===g).forEach(m=>{ _teamToGroup[m[5]]=g; _teamToGroup[m[6]]=g; });
+  _MATCHES.filter(m=>m[7]===g).forEach(m=>{ _teamToGroup[m[5]]=g; _teamToGroup[m[6]]=g; });
 });
 
 // Resolve every slot to its real team+group from MATCHES R32 entries
@@ -5522,7 +5609,7 @@ slots.forEach((s,i)=>{
   const r32m = R32[s.mi];
   if (!r32m) return;
   const matchNum = parseInt(r32m.id.replace('M',''));
-  const m = MATCHES.find(x => x[7]==='R32' && x[12]===matchNum);
+  const m = _MATCHES.find(x => x[7]==='R32' && x[12]===matchNum);
   if (!m) return;
   const team = s.side===0 ? m[5] : m[6];
   if (team && team !== 'TBD') {
@@ -5537,7 +5624,7 @@ const _qualifiedTeams = new Set(slots.map(s=>s.label).filter(t => t && _teamToGr
 // Teams eliminated at group stage
 const _eliminatedTeams = new Set();
 'ABCDEFGHIJKL'.split('').forEach(g => {
-  const gms = MATCHES.filter(m=>m[7]===g);
+  const gms = _MATCHES.filter(m=>m[7]===g);
   if (gms.length>0 && gms.every(m=>m[10]!==null)) {
     gms.forEach(m=>{ [m[5],m[6]].forEach(t=>{ if(!_qualifiedTeams.has(t)) _eliminatedTeams.add(t); }); });
   }
@@ -5620,7 +5707,7 @@ GROUPS.forEach((g,gi)=>{
 const _teamCol = (team) => {
   if (!team || team==='TBD') return null;
   // Read directly from MATCHES — avoids inner STATE shadowing issue
-  const gm = MATCHES.find(m => 'ABCDEFGHIJKL'.includes(m[7]) && (m[5]===team||m[6]===team));
+  const gm = _MATCHES.find(m => 'ABCDEFGHIJKL'.includes(m[7]) && (m[5]===team||m[6]===team));
   return gm ? GC[gm[7]] : null;
 };
 
@@ -5641,10 +5728,10 @@ function _winnerOf(matchKey) {
     mn = _bracketMatchNum[matchKey];
   }
   if (!mn || isNaN(mn)) return null;
-  const m = MATCHES.find(x => x[12] === mn);
+  const m = _MATCHES.find(x => x[12] === mn);
   if (!m || m[10] === null || m[11] === null) return null;
   if (m[13] === 'pen') {
-    return (typeof MATCH_REPORTS !== 'undefined' && MATCH_REPORTS[mn]?.pen_winner) || null;
+    return (typeof _MATCH_REPORTS !== 'undefined' && _MATCH_REPORTS[mn]?.pen_winner) || null;
   }
   return m[10] > m[11] ? m[5] : m[10] < m[11] ? m[6] : null;
 }
@@ -5771,8 +5858,8 @@ function renderGroupTeams(g,container,px,py,bw,bh){
 const isMobile=window.matchMedia('(max-width:768px)').matches;
 
 // ── Sidebar drawer (replaces floating tooltip on desktop) ──
-const koDrawerEl = document.getElementById('koDrawer');
-const koDrawerContentEl = document.getElementById('koDrawerContent');
+const koDrawerEl = document.getElementById(_DRAWER_ID);
+const koDrawerContentEl = document.getElementById(_DRAWER_CONTENT_ID);
 
 function showTip(ev, html) {
   if (isMobile) {
@@ -5804,7 +5891,7 @@ function hideTip() {
 function teamPath(team, currentMatchNum) {
   if (!team || team==='TBD') return '';
   const stageOrder = ['A','B','C','D','E','F','G','H','I','J','K','L','R32','R16','QF','SF','Final','3rd'];
-  const prior = MATCHES.filter(x =>
+  const prior = _MATCHES.filter(x =>
     (x[5]===team || x[6]===team) &&
     x[10]!==null && x[11]!==null &&
     (!currentMatchNum || x[12] < currentMatchNum)
@@ -5816,8 +5903,8 @@ function teamPath(team, currentMatchNum) {
     const teamScore = x[5]===team ? x[10] : x[11];
     const oppScore = x[5]===team ? x[11] : x[10];
     const suf = x[13]==='pen' ? ' <span style="opacity:.6">P</span>' : x[13]==='aet' ? ' <span style="opacity:.6">AET</span>' : '';
-    const won = teamScore > oppScore || (x[13]==='pen' && MATCH_REPORTS[x[12]]?.pen_winner===team);
-    const lost = teamScore < oppScore || (x[13]==='pen' && MATCH_REPORTS[x[12]]?.pen_winner && MATCH_REPORTS[x[12]]?.pen_winner!==team);
+    const won = teamScore > oppScore || (x[13]==='pen' && _MATCH_REPORTS[x[12]]?.pen_winner===team);
+    const lost = teamScore < oppScore || (x[13]==='pen' && _MATCH_REPORTS[x[12]]?.pen_winner && _MATCH_REPORTS[x[12]]?.pen_winner!==team);
     const drew = teamScore===oppScore && !x[13];
     const resultCol = won?'#6abf6a':lost?'#bf6a6a':'#aaa';
     const stageLbl = 'ABCDEFGHIJKL'.includes(x[7]) ? 'Grp '+x[7] : x[7];
@@ -5856,7 +5943,7 @@ function matchTip(m,groups){
   if (m.id.startsWith('M')) matchNum = parseInt(m.id.slice(1));
   else if (m.id === 'FINAL') matchNum = 108;
   else matchNum = _bracketMatchNum[m.id];
-  const mData = matchNum ? MATCHES.find(x => x[12]===matchNum) : null;
+  const mData = matchNum ? _MATCHES.find(x => x[12]===matchNum) : null;
   const hasScore = mData && mData[10]!==null && mData[11]!==null;
   const suffix = mData?.[13];
   const scoreStr = hasScore
@@ -5882,12 +5969,12 @@ function teamTip(s,m){
   const color=s.group?GC[s.group]:GC[s.possGroups[0]]||'#888';
   const team = s.label;
   // Is this team eliminated? Check if they lost any KO match or finished below qualifying spot in group
-  const teamKOMatches = MATCHES.filter(x =>
+  const teamKOMatches = _MATCHES.filter(x =>
     ['R32','R16','QF','SF'].includes(x[7]) && (x[5]===team || x[6]===team) && x[10]!==null
   );
   const eliminated = teamKOMatches.some(x => {
     const won = x[13]==='pen'
-      ? MATCH_REPORTS[x[12]]?.pen_winner === team
+      ? _MATCH_REPORTS[x[12]]?.pen_winner === team
       : (x[5]===team ? x[10] > x[11] : x[11] > x[10]);
     return !won;
   });
@@ -5913,7 +6000,7 @@ function groupTip(g){
   const alive=gs.teams.filter(t=>!isElim(t));
 
   // Compute qualification status per team using same logic as tables
-  const groupMatches = MATCHES.filter(m=>m[7]===g);
+  const groupMatches = _MATCHES.filter(m=>m[7]===g);
   const totalGames = groupMatches.length;
   const playedGames = groupMatches.filter(m=>m[10]!==null).length;
   function teamGamesLeft(team){ return groupMatches.filter(m=>m[10]===null&&(m[5]===team||m[6]===team)).length; }
@@ -6064,12 +6151,12 @@ function lightForward(r32i,slotIdxs,groups){
   // For each team, find if they've been eliminated and where they lost
   // Returns: { eliminated: bool, lostAt: 'r32'|'r16'|'qf'|'sf'|'final'|null }
   function teamStatus(team) {
-    const teamKO = MATCHES.filter(x =>
+    const teamKO = _MATCHES.filter(x =>
       ['R32','R16','QF','SF','Final','3rd'].includes(x[7]) && (x[5]===team || x[6]===team) && x[10]!==null
     );
     for (const x of teamKO) {
       const won = x[13]==='pen'
-        ? MATCH_REPORTS[x[12]]?.pen_winner === team
+        ? _MATCH_REPORTS[x[12]]?.pen_winner === team
         : (x[5]===team ? x[10] > x[11] : x[11] > x[10]);
       if (!won) {
         const stageLower = x[7].toLowerCase();
@@ -6118,9 +6205,9 @@ function lightGroup(g){
                92:92,93:93,94:94,95:95,96:96,97:97,98:98,99:99,
                100:100,101:101,102:102,103:103,104:104,105:105,108:108};
   function matchWinner(mn) {
-    const m = MATCHES.find(x => x[12]===mn);
+    const m = _MATCHES.find(x => x[12]===mn);
     if (!m || m[10]===null || m[11]===null) return null;
-    if (m[13]==='pen') return MATCH_REPORTS[mn]?.pen_winner || null;
+    if (m[13]==='pen') return _MATCH_REPORTS[mn]?.pen_winner || null;
     return m[10] > m[11] ? m[5] : m[10] < m[11] ? m[6] : null;
   }
   // For each team in the group, light up only the nodes/edges they actually reached
@@ -6279,9 +6366,43 @@ bracketSvg.addEventListener('click',()=>{
   }
 });
 
+// ── Optional click-to-navigate hook (used by the simulator) ─────────────────
+// When opts.onMatchClick is set, clicks on slot / R32 / R16 / QF / SF / Final
+// nodes are reported back to the caller as match numbers, so the caller can
+// drive its own drawer / state. Fires on capture so it runs before the
+// reset-drawer handler above.
+if (_ON_MATCH_CLICK) {
+  bracketSvg.addEventListener('click', (ev) => {
+    let el = ev.target;
+    while (el && el !== bracketSvg) {
+      // R32
+      let idx = REG.r32Els.indexOf(el);
+      if (idx >= 0) { _ON_MATCH_CLICK(73 + idx); return; }
+      // R16
+      idx = REG.r16Els.indexOf(el);
+      if (idx >= 0) { _ON_MATCH_CLICK(92 + idx); return; }
+      // QF
+      idx = REG.qfEls.indexOf(el);
+      if (idx >= 0) { _ON_MATCH_CLICK(100 + idx); return; }
+      // SF
+      idx = REG.sfEls.indexOf(el);
+      if (idx >= 0) { _ON_MATCH_CLICK(104 + idx); return; }
+      // Final
+      if (el === REG.finEl) { _ON_MATCH_CLICK(108); return; }
+      // Slot — both sides of an R32 match point to that match. Pass slotIdx
+      // through so callers (like the simulator) can detect unresolved-slot
+      // clicks and redirect to the source group instead.
+      idx = REG.slotEls.indexOf(el);
+      if (idx >= 0) { _ON_MATCH_CLICK(73 + (idx >> 1), { slotIdx: idx }); return; }
+      el = el.parentNode;
+    }
+  }, true);
+}
+
 // ── Mobile support ────────────────────────────────────────────────────────────
 if(isMobile){
-  document.getElementById('bracket-mobile-hint').style.display='block';
+  const _mobileHint = document.getElementById('bracket-mobile-hint');
+  if (_mobileHint) _mobileHint.style.display='block';
   const _hb=document.getElementById('hint-bracket'); if(_hb)_hb.style.display='none';
 
   // Bottom sheet tooltip — fixed to bottom of screen
@@ -6567,5 +6688,1792 @@ updateKnockoutNodeVisuals();
 }
 
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     WORLD CUP SIMULATOR — self-contained module
+     Does NOT mutate any other page data. All state in localStorage.
+═══════════════════════════════════════════════════════════════════════ -->
+<style>
+/* ── Simulator pane layout ─────────────────────────── */
+#pane-simulator {
+  background: #07091a;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  display: none;
+  flex-direction: column;
+  height: calc(100vh - var(--top-bar-h, 88px));
+  color: #c0cae0;
+}
+#pane-simulator.active { display: flex; }
+
+.sim-outer {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.sim-board {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 0;
+  background: #07091a;
+}
+.sim-bracket-wrap {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 4px 8px 24px;
+  position: relative;
+}
+#simBracketChart { display: block; width: 100%; height: auto; }
+
+/* Bracket / Groups toggle */
+.sim-view-toggle {
+  display: flex; gap: 0;
+  padding: 10px 14px 0;
+  max-width: 1080px;
+  margin: 0 auto;
+  border-bottom: 1px solid #1a2448;
+}
+.sim-view-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #6878a8;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 9px 16px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: color .15s, border-color .15s;
+}
+.sim-view-btn i { font-size: 14px; }
+.sim-view-btn:hover { color: #c0cae0; }
+.sim-view-btn.active { color: #e8541a; border-bottom-color: #e8541a; }
+
+/* Groups view */
+.sim-view-groups {
+  padding: 16px 16px 60px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.sim-groups-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+/* Pulse for current node — overlaid by sim JS after redraw */
+@keyframes simNodePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}
+.sim-current-ring { animation: simNodePulse 1.6s ease-in-out infinite; }
+
+.sim-drawer {
+  width: 360px;
+  flex-shrink: 0;
+  background: #0c1028;
+  border-left: 1px solid #1a2448;
+  overflow-y: auto;
+  height: 100%;
+}
+@media (min-width: 1400px) { .sim-drawer { width: 400px; } }
+@media (max-width: 900px) {
+  .sim-outer { flex-direction: column-reverse; }
+  .sim-drawer { width: 100%; height: auto; max-height: 65vh; border-left: none; border-top: 1px solid #1a2448; }
+  .sim-board { max-height: none; }
+}
+.sim-drawer-content { padding: 18px 16px 32px; }
+
+/* ── Header / progress ─────────────────────────── */
+.sim-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px; padding-bottom: 10px;
+  border-bottom: 1px solid #1a2448;
+}
+.sim-header-title {
+  font-size: 11px; font-weight: 800; letter-spacing: .18em;
+  color: #F2C12E; text-transform: uppercase;
+}
+.sim-header-title i { margin-right: 6px; color: #e8541a; }
+.sim-reset-btn {
+  background: none; border: 1px solid #2a3860; color: #6878a8;
+  padding: 4px 10px; font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; border-radius: 4px;
+  cursor: pointer; transition: all .15s;
+  font-family: 'Inter', sans-serif;
+}
+.sim-reset-btn:hover { color: #e84040; border-color: #e84040; background: rgba(232,64,64,.06); }
+.sim-reset-btn i { margin-right: 4px; }
+/* Random fill button — same shape as reset, gold accent */
+.sim-header-actions { display: flex; gap: 4px; align-items: center; }
+.sim-random-btn {
+  background: none; border: 1px solid #2a3860; color: #6878a8;
+  padding: 4px 10px; font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; border-radius: 4px;
+  cursor: pointer; transition: all .15s;
+  font-family: 'Inter', sans-serif;
+}
+.sim-random-btn:hover:not(:disabled) {
+  color: #F2C12E; border-color: #F2C12E; background: rgba(242,193,46,.06);
+}
+.sim-random-btn:disabled { opacity: .55; cursor: progress; color: #F2C12E; border-color: #F2C12E; }
+.sim-random-btn i { margin-right: 4px; }
+
+/* ── 3rd place rankings table in Groups view ──────────────────────── */
+.sim-3rd-section {
+  margin-top: 18px;
+  background: #0c1028;
+  border: 1px solid #1a2448;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sim-3rd-header {
+  padding: 11px 14px;
+  border-bottom: 1px solid #1a2448;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+}
+.sim-3rd-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px; font-weight: 800;
+  letter-spacing: .15em; text-transform: uppercase;
+  color: #F2C12E;
+  display: flex; align-items: center; gap: 7px;
+}
+.sim-3rd-title i { font-size: 14px; color: #e8541a; }
+.sim-3rd-subtitle {
+  display: block; font-size: 10px; color: #4a5a80;
+  letter-spacing: .04em; text-transform: none;
+  font-weight: 500; margin-top: 1px;
+}
+.sim-3rd-filter {
+  display: flex; gap: 0;
+  background: #131a35;
+  padding: 3px;
+  border-radius: 5px;
+}
+.sim-filter-btn {
+  background: transparent;
+  border: none;
+  color: #6878a8;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 5px 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.sim-filter-btn.active { background: #e8541a; color: #fff; }
+.sim-filter-btn:hover:not(.active) { color: #c0cae0; }
+
+.sim-3rd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.sim-3rd-table th {
+  text-align: left;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #4a5a80;
+  padding: 7px 10px;
+  border-bottom: 1px solid #1a2448;
+  background: #0a0d1f;
+}
+.sim-3rd-table th.num { text-align: center; }
+.sim-3rd-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(26,36,72,.45);
+  color: #c0cae0;
+}
+.sim-3rd-table td.num { text-align: center; color: #8898c8; }
+.sim-3rd-table td.pts { text-align: center; color: #fff; font-weight: 700; }
+.sim-3rd-table tbody tr:last-child td { border-bottom: none; }
+.sim-3rd-table tbody tr.q td { background: rgba(45, 106, 79, .09); }
+.sim-3rd-table tbody tr.cutoff-row td {
+  border-top: 2px dashed #2a3860;
+  position: relative;
+}
+.sim-3rd-rank {
+  display: inline-block;
+  width: 18px;
+  text-align: center;
+  font-weight: 800;
+  color: #6878a8;
+  font-size: 11px;
+}
+.sim-3rd-rank.q { color: #6abf6a; }
+.sim-3rd-grp {
+  display: inline-flex; align-items: center;
+  gap: 6px;
+}
+.sim-3rd-grp-dot {
+  display: inline-block;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sim-3rd-grp-letter {
+  font-weight: 800;
+  font-size: 11px;
+  color: #c0cae0;
+  letter-spacing: .05em;
+  min-width: 10px;
+}
+.sim-3rd-team-cell {
+  display: flex; align-items: center; gap: 8px;
+}
+.sim-3rd-team-cell .flag-img {
+  width: 18px; height: 13px;
+  border-radius: 2px; flex-shrink: 0;
+}
+.sim-3rd-team-cell .flag-tbd {
+  display: inline-block; width: 18px; height: 13px;
+  background: #1a2448; color: #4a5a80; border-radius: 2px;
+  font-size: 10px; line-height: 13px; text-align: center; font-weight: 700;
+}
+.sim-3rd-team-cell .nm {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-weight: 500;
+}
+.sim-3rd-table tbody tr.q .sim-3rd-team-cell .nm { color: #fff; font-weight: 600; }
+.sim-3rd-cutoff-label {
+  font-size: 9px; font-weight: 700;
+  color: #6878a8; text-transform: uppercase;
+  letter-spacing: .08em;
+  padding: 6px 10px;
+  background: rgba(26, 36, 72, .35);
+  border-top: 1px dashed #2a3860;
+  border-bottom: 1px solid #1a2448;
+  text-align: center;
+}
+
+.sim-progress {
+  margin-bottom: 14px;
+}
+.sim-progress-label {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: #6878a8; margin-bottom: 4px;
+  font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+}
+.sim-progress-label b { color: #c0cae0; }
+.sim-progress-bar {
+  height: 5px; background: #1a2448; border-radius: 3px; overflow: hidden;
+}
+.sim-progress-fill {
+  height: 100%; background: linear-gradient(90deg, #e8541a, #F2C12E);
+  border-radius: 3px; transition: width .25s ease;
+}
+
+/* ── Current match panel ─────────────────────────── */
+.sim-match-meta {
+  font-size: 10px; color: #6878a8; letter-spacing: .12em;
+  text-transform: uppercase; font-weight: 700;
+  margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
+}
+.sim-match-stage {
+  background: rgba(242,193,46,.12); color: #F2C12E;
+  padding: 2px 7px; border-radius: 3px;
+  font-size: 9px; letter-spacing: .15em;
+}
+.sim-match-venue {
+  font-size: 11px; color: #4a5a80; margin-bottom: 14px;
+}
+.sim-match-venue i { margin-right: 4px; color: #4a5a80; }
+
+.sim-team-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; background: rgba(255,255,255,.025);
+  border: 1px solid #1a2448; border-radius: 6px;
+  margin-bottom: 8px;
+}
+.sim-team-row.home { border-left: 3px solid #e8541a; }
+.sim-team-row.away { border-left: 3px solid #5060a0; }
+.sim-team-flag { flex-shrink: 0; }
+.sim-team-flag .flag-img { width: 32px; height: 24px; border-radius: 2px; }
+.sim-team-flag .flag-tbd {
+  display: inline-block; width: 32px; height: 24px;
+  background: #1a2448; color: #4a5a80; border-radius: 2px;
+  text-align: center; line-height: 24px; font-weight: 700; font-size: 14px;
+}
+.sim-team-info { flex: 1; min-width: 0; }
+.sim-team-name {
+  font-size: 14px; font-weight: 700; color: #e8eaf6;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sim-team-name.tbd { color: #4a5a80; font-style: italic; font-weight: 500; }
+.sim-team-placeholder {
+  font-size: 10px; color: #5060a0; margin-top: 1px;
+  letter-spacing: .08em; text-transform: uppercase; font-weight: 600;
+}
+
+/* Score buttons */
+.sim-score-row {
+  display: flex; gap: 6px; align-items: center; flex-shrink: 0;
+}
+.sim-score-btn {
+  width: 30px; height: 30px;
+  background: #131a35; border: 1px solid #2a3860;
+  color: #c0cae0; font-weight: 700; font-size: 14px;
+  border-radius: 4px; cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: all .12s ease;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sim-score-btn:hover:not(:disabled) {
+  background: #1c2545; border-color: #4a5a80; color: #fff;
+}
+.sim-score-btn.selected {
+  background: #e8541a; border-color: #e8541a; color: #fff;
+  box-shadow: 0 0 0 1px #e8541a;
+}
+.sim-team-row.away .sim-score-btn.selected {
+  background: #5060a0; border-color: #5060a0;
+  box-shadow: 0 0 0 1px #5060a0;
+}
+.sim-score-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Penalty winner picker */
+.sim-pen-panel {
+  margin: 12px 0 8px;
+  padding: 12px;
+  background: rgba(242,193,46,.06);
+  border: 1px solid rgba(242,193,46,.25);
+  border-radius: 6px;
+}
+.sim-pen-label {
+  font-size: 10px; font-weight: 800; letter-spacing: .15em;
+  text-transform: uppercase; color: #F2C12E;
+  margin-bottom: 8px;
+}
+.sim-pen-label i { margin-right: 4px; }
+.sim-pen-btns { display: flex; gap: 6px; }
+.sim-pen-btn {
+  flex: 1; padding: 8px 10px;
+  background: #131a35; border: 1px solid #2a3860;
+  color: #c0cae0; font-size: 11px; font-weight: 700;
+  border-radius: 4px; cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: all .12s ease;
+  display: flex; align-items: center; gap: 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sim-pen-btn:hover:not(:disabled) { background: #1c2545; border-color: #F2C12E; }
+.sim-pen-btn.selected {
+  background: rgba(242,193,46,.18); border-color: #F2C12E; color: #F2C12E;
+}
+.sim-pen-btn:disabled { opacity: .5; cursor: not-allowed; }
+.sim-pen-btn .flag-img { width: 16px; height: 12px; flex-shrink: 0; }
+
+/* Navigation */
+.sim-nav {
+  display: flex; gap: 6px; margin-top: 14px;
+  padding-top: 12px; border-top: 1px solid #1a2448;
+}
+.sim-nav-btn {
+  flex: 1; padding: 9px 10px;
+  background: #131a35; border: 1px solid #2a3860;
+  color: #c0cae0; font-size: 11px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; border-radius: 4px;
+  cursor: pointer; font-family: 'Inter', sans-serif;
+  transition: all .12s ease;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+}
+.sim-nav-btn:hover:not(:disabled) { background: #1c2545; border-color: #4a5a80; }
+.sim-nav-btn:disabled { opacity: .35; cursor: not-allowed; }
+.sim-nav-btn.primary {
+  background: #e8541a; border-color: #e8541a; color: #fff;
+}
+.sim-nav-btn.primary:hover:not(:disabled) { background: #c4400f; border-color: #c4400f; }
+/* Per-match Clear button — sits between Back and Next when a result exists */
+.sim-clear-btn {
+  flex: 0 0 auto; padding: 9px 12px;
+  background: transparent; border: 1px solid #2a3860;
+  color: #6878a8; font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; border-radius: 4px;
+  cursor: pointer; font-family: 'Inter', sans-serif;
+  transition: all .12s ease;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+}
+.sim-clear-btn:hover {
+  color: #e84040; border-color: #e84040; background: rgba(232,64,64,.08);
+}
+.sim-clear-btn i { font-size: 13px; }
+
+/* ── Section blocks within drawer ─────────────────────────── */
+.sim-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid #1a2448; }
+.sim-section-label {
+  font-size: 9px; font-weight: 800; letter-spacing: .14em;
+  text-transform: uppercase; color: #5060a0;
+  margin-bottom: 8px;
+}
+.sim-section-label i { color: #4a5a80; margin-right: 5px; }
+
+/* Mini group table */
+.sim-mini-table {
+  width: 100%; border-collapse: collapse; font-size: 11px;
+}
+.sim-mini-table th {
+  text-align: left; color: #4a5a80; font-weight: 700;
+  padding: 4px 4px; border-bottom: 1px solid #1a2448;
+  letter-spacing: .05em; text-transform: uppercase; font-size: 9px;
+}
+.sim-mini-table th.num { text-align: center; }
+.sim-mini-table td {
+  padding: 5px 4px; border-bottom: 1px solid rgba(26,36,72,.4);
+  color: #c0cae0;
+}
+.sim-mini-table td.num { text-align: center; color: #6878a8; }
+.sim-mini-table td.pts { text-align: center; color: #fff; font-weight: 700; }
+.sim-mini-table tr.q1 td:first-child { border-left: 2px solid #2d6a4f; padding-left: 6px; }
+.sim-mini-table tr.q2 td:first-child { border-left: 2px solid #2d6a4f; padding-left: 6px; }
+.sim-mini-table tr.q3 td:first-child { border-left: 2px solid #c9922a; padding-left: 6px; }
+.sim-mini-table tr.elim td:first-child { border-left: 2px solid transparent; padding-left: 6px; }
+.sim-mini-table .pos {
+  display: inline-block; width: 14px; text-align: center;
+  font-size: 9px; font-weight: 800; color: #4a5a80; margin-right: 4px;
+}
+.sim-mini-table .pos.q { color: #6abf6a; }
+.sim-mini-table .pos.q3 { color: #F2C12E; }
+.sim-mini-table .flag-img { width: 16px; height: 12px; vertical-align: middle; }
+.sim-mini-table .tn { margin-left: 4px; }
+.sim-mini-table tr.current-team td { background: rgba(232,84,26,.08); }
+
+/* Match history list */
+.sim-history-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 6px; font-size: 11px;
+  border-bottom: 1px solid rgba(26,36,72,.4);
+  color: #90a0c8;
+}
+.sim-history-row:last-child { border-bottom: none; }
+.sim-history-row .flag-img { width: 14px; height: 10px; }
+.sim-history-row .t { flex: 1; }
+.sim-history-row .s {
+  font-weight: 700; color: #fff;
+  background: #1a2448; padding: 1px 6px; border-radius: 3px;
+  font-size: 10px;
+}
+.sim-history-row.upcoming { color: #4a5a80; }
+.sim-history-row.upcoming .s { background: transparent; color: #4a5a80; border: 1px dashed #2a3860; }
+.sim-history-row.clickable { cursor: pointer; }
+.sim-history-row.clickable:hover { background: rgba(255,255,255,.025); }
+.sim-history-row.current { background: rgba(232,84,26,.06); border-left: 2px solid #e8541a; padding-left: 4px; }
+
+/* ── Champion / done state ─────────────────────────── */
+.sim-champion-block {
+  text-align: center; padding: 20px 14px;
+  background: linear-gradient(135deg, rgba(242,193,46,.12), rgba(232,84,26,.08));
+  border: 1px solid rgba(242,193,46,.3);
+  border-radius: 8px; margin-bottom: 14px;
+}
+.sim-champion-block .ph-trophy { font-size: 38px; color: #F2C12E; margin-bottom: 6px; }
+.sim-champion-label {
+  font-size: 10px; font-weight: 800; letter-spacing: .2em;
+  text-transform: uppercase; color: #F2C12E; margin-bottom: 6px;
+}
+.sim-champion-name {
+  font-size: 22px; font-weight: 800; color: #fff;
+  font-family: 'Playfair Display', serif;
+}
+.sim-champion-name .flag-img { width: 40px; height: 30px; vertical-align: middle; margin-right: 10px; border-radius: 3px; }
+.sim-champion-final {
+  font-size: 12px; color: #c0cae0; margin-top: 8px;
+}
+.sim-champion-final b { color: #F2C12E; }
+
+/* ── Left side: group cards + KO bracket ─────────────────────────── */
+.sim-board-title {
+  font-size: 11px; font-weight: 800; letter-spacing: .15em;
+  text-transform: uppercase; color: #5060a0;
+  margin: 4px 0 10px; padding-bottom: 6px;
+  border-bottom: 1px solid #1a2448;
+  display: flex; align-items: center; gap: 8px;
+}
+.sim-board-title i { color: #e8541a; font-size: 14px; }
+.sim-board-title .count {
+  margin-left: auto; font-size: 10px; color: #4a5a80;
+  font-weight: 600; letter-spacing: .05em; text-transform: none;
+}
+
+.sim-groups-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px; margin-bottom: 24px;
+}
+/* ── Sim Groups view: reuses .group-table-card / .gtc-* from Tables page ──
+   Just adds simulator-only behavior: clickable cards + current-group ring. */
+.sim-view-groups .group-table-card {
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.sim-view-groups .group-table-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.35);
+  border-color: #2a3860;
+}
+.sim-view-groups .group-table-card.current {
+  border-color: #e8541a;
+  box-shadow: 0 0 0 1px #e8541a;
+}
+.sim-view-groups .gtc-header {
+  font-size: 12px;
+  letter-spacing: .12em;
+  padding: 6px 12px;
+  font-weight: 700;
+}
+.sim-view-groups .gtc-table { font-size: 12px; }
+.sim-view-groups .gtc-table th {
+  font-size: 9px;
+  letter-spacing: .12em;
+  padding: 6px 8px;
+}
+.sim-view-groups .gtc-table td { padding: 6px 8px; }
+.sim-view-groups .gtc-name { font-size: 12px; }
+.sim-view-groups .gtc-table .pts { font-size: 13px; }
+.sim-view-groups .gtc-name {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+/* KO bracket */
+.sim-bracket {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 8px; align-items: stretch;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.sim-bracket-col { display: flex; flex-direction: column; gap: 6px; min-width: 140px; }
+.sim-bracket-col-label {
+  font-size: 9px; font-weight: 800; letter-spacing: .14em;
+  text-transform: uppercase; color: #5060a0; text-align: center;
+  margin-bottom: 4px;
+}
+.sim-bracket-col[data-round="r32"] { justify-content: space-around; }
+.sim-bracket-col[data-round="r16"] { justify-content: space-around; padding-top: 0; }
+.sim-bracket-col[data-round="qf"] { justify-content: space-around; }
+.sim-bracket-col[data-round="sf"] { justify-content: space-around; }
+.sim-bracket-col[data-round="final"] { justify-content: center; }
+
+.sim-ko-card {
+  background: #0c1028; border: 1px solid #1a2448; border-radius: 5px;
+  padding: 5px 7px; cursor: pointer;
+  font-size: 11px; transition: all .15s ease;
+  min-height: 40px;
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+}
+.sim-ko-card:hover { border-color: #2a3860; }
+.sim-ko-card.current { border-color: #e8541a; box-shadow: 0 0 0 1px #e8541a; }
+.sim-ko-card.done { background: #0e1430; }
+.sim-ko-card.final-card { border-color: rgba(242,193,46,.3); background: linear-gradient(135deg,#0e1428,#07091a); }
+.sim-ko-card.final-card.done { border-color: #F2C12E; }
+.sim-ko-id {
+  font-size: 8px; color: #4a5a80; letter-spacing: .1em;
+  font-weight: 700; text-transform: uppercase;
+}
+.sim-ko-line {
+  display: flex; align-items: center; gap: 5px;
+}
+.sim-ko-line .flag-img { width: 14px; height: 10px; flex-shrink: 0; }
+.sim-ko-line .nm {
+  flex: 1; color: #c0cae0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 11px;
+}
+.sim-ko-line .nm.tbd { color: #4a5a80; font-style: italic; }
+.sim-ko-line .nm.win { color: #fff; font-weight: 700; }
+.sim-ko-line .nm.loss { color: #5060a0; }
+.sim-ko-line .sc { color: #fff; font-weight: 700; font-size: 11px; min-width: 12px; text-align: right; }
+.sim-ko-line .sc.loss { color: #5060a0; }
+.sim-ko-line .pen {
+  font-size: 8px; color: #F2C12E; font-weight: 700; margin-left: 2px;
+  letter-spacing: .05em;
+}
+
+/* Stage-section row */
+.sim-stage-section { margin-bottom: 22px; }
+
+@media (max-width: 600px) {
+  .sim-board { padding: 12px 12px 80px; }
+  .sim-groups-grid { grid-template-columns: 1fr; gap: 10px; }
+  .sim-bracket { grid-template-columns: repeat(5, 130px); }
+  .sim-drawer-content { padding: 14px 12px 24px; }
+  .sim-team-flag .flag-img, .sim-team-flag .flag-tbd { width: 26px; height: 20px; }
+  .sim-team-name { font-size: 13px; }
+  .sim-score-btn { width: 26px; height: 26px; font-size: 13px; }
+}
+
+/* Empty state */
+.sim-empty {
+  text-align: center; color: #4a5a80;
+  padding: 40px 14px;
+}
+.sim-empty i { font-size: 28px; margin-bottom: 8px; display: block; }
+.sim-empty p { font-size: 12px; }
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+//  WORLD CUP 2026 SIMULATOR
+//  Self-contained. Reads MATCHES, GROUP_TEAMS, FIFA_3RD_TABLE,
+//  KO_TEAM_TEMPLATES, FLAGS (existing globals) but never mutates them.
+//  All user state lives in localStorage under wc2026_sim_v1.
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  'use strict';
+
+  const SIM_KEY = 'wc2026_sim_v1';
+  let initialised = false;
+
+  // Ordered list of match numbers (group games first, then KO in chronological order)
+  let ORDER = [];
+
+  // Sim state
+  let SIM = { results: {}, currentIdx: 0, activeView: 'bracket', thirdFilter: 'all' };
+
+  // Random-fill animation in progress?
+  let randomFilling = false;
+
+  // ── Storage ──────────────────────────────────────
+  function save() {
+    try { localStorage.setItem(SIM_KEY, JSON.stringify(SIM)); } catch(e){}
+  }
+  function load() {
+    try {
+      const raw = localStorage.getItem(SIM_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d && typeof d === 'object') {
+        SIM.results = (d.results && typeof d.results === 'object') ? d.results : {};
+        SIM.currentIdx = Number.isInteger(d.currentIdx) ? d.currentIdx : 0;
+        if (SIM.currentIdx < 0) SIM.currentIdx = 0;
+        if (SIM.currentIdx >= ORDER.length) SIM.currentIdx = ORDER.length - 1;
+        SIM.activeView = (d.activeView === 'groups') ? 'groups' : 'bracket';
+        SIM.thirdFilter = (d.thirdFilter === 'qualifying') ? 'qualifying' : 'all';
+      }
+    } catch(e){}
+  }
+  function reset() {
+    const prevView = SIM.activeView;
+    const prevFilter = SIM.thirdFilter;
+    SIM = { results: {}, currentIdx: 0, activeView: prevView || 'bracket', thirdFilter: prevFilter || 'all' };
+    invalidateBest3rd();
+    save();
+    render();
+  }
+
+  // ── Match lookup helpers ──────────────────────────────────────
+  function findMatch(num) {
+    return MATCHES.find(m => m[12] === num) || null;
+  }
+
+  function buildOrder() {
+    ORDER = MATCHES.map(m => m[12]);
+  }
+
+  function isGroupStage(matchNum) {
+    const m = findMatch(matchNum);
+    return m && 'ABCDEFGHIJKL'.includes(m[7]);
+  }
+
+  // Always use the KO_TEAM_TEMPLATES placeholders, not MATCHES m[5]/m[6]
+  // (which may have been mutated by other parts of the page).
+  function placeholderHA(matchNum) {
+    if (KO_TEAM_TEMPLATES[matchNum]) return KO_TEAM_TEMPLATES[matchNum];
+    const m = findMatch(matchNum);
+    return m ? [m[5], m[6]] : [null, null];
+  }
+
+  // ── Standings computation using SIM.results ──────────────────────────────────────
+  function simStandings(grp) {
+    const teams = GROUP_TEAMS[grp];
+    const st = {};
+    teams.forEach(t => st[t] = { team:t, grp, p:0,w:0,d:0,l:0,gf:0,ga:0,pts:0 });
+    const groupMatches = MATCHES.filter(m => m[7] === grp);
+    groupMatches.forEach(m => {
+      const r = SIM.results[m[12]];
+      if (!r) return;
+      const [h, a] = [m[5], m[6]];
+      const hs = r.hs|0, as_ = r.as|0;
+      if (!st[h] || !st[a]) return;
+      st[h].p++; st[a].p++;
+      st[h].gf += hs; st[h].ga += as_;
+      st[a].gf += as_; st[a].ga += hs;
+      if (hs > as_) { st[h].w++; st[h].pts += 3; st[a].l++; }
+      else if (hs < as_) { st[a].w++; st[a].pts += 3; st[h].l++; }
+      else { st[h].d++; st[h].pts++; st[a].d++; st[a].pts++; }
+    });
+
+    // H2H among tied teams
+    function h2h(subset) {
+      const o = {};
+      subset.forEach(t => o[t] = { pts:0, gd:0, gf:0 });
+      groupMatches.forEach(m => {
+        const r = SIM.results[m[12]]; if (!r) return;
+        const [h,a] = [m[5], m[6]];
+        if (!subset.includes(h) || !subset.includes(a)) return;
+        const hs = r.hs|0, as_ = r.as|0;
+        o[h].gf += hs; o[h].gd += (hs - as_);
+        o[a].gf += as_; o[a].gd += (as_ - hs);
+        if (hs > as_) o[h].pts += 3;
+        else if (hs < as_) o[a].pts += 3;
+        else { o[h].pts++; o[a].pts++; }
+      });
+      return o;
+    }
+
+    return Object.values(st).sort((a, b) => {
+      if (b.pts !== a.pts) return b.pts - a.pts;
+      const tied = Object.values(st).filter(s => s.pts === a.pts).map(s => s.team);
+      if (tied.length > 1 && tied.length < teams.length) {
+        const H = h2h(tied);
+        if (H[a.team] && H[b.team]) {
+          if (H[b.team].pts !== H[a.team].pts) return H[b.team].pts - H[a.team].pts;
+          if (H[b.team].gd  !== H[a.team].gd ) return H[b.team].gd  - H[a.team].gd;
+          if (H[b.team].gf  !== H[a.team].gf ) return H[b.team].gf  - H[a.team].gf;
+        }
+      }
+      const gda = a.gf - a.ga, gdb = b.gf - b.ga;
+      if (gdb !== gda) return gdb - gda;
+      return b.gf - a.gf;
+    });
+  }
+
+  function groupComplete(g) {
+    return MATCHES.filter(m => m[7] === g).every(m => SIM.results[m[12]]);
+  }
+  function allGroupsComplete() {
+    return 'ABCDEFGHIJKL'.split('').every(groupComplete);
+  }
+
+  // Best 8 third-placed teams, FIFA-allocated to R32 best-3rd slots
+  let _best3rdCache = null;
+  function best3rdAssignment() {
+    // Safety: don't return a stale cache if state has been cleared.
+    // Cache only applies when all groups are complete.
+    if (!allGroupsComplete()) { _best3rdCache = null; return {}; }
+    if (_best3rdCache) return _best3rdCache;
+    const allThirds = 'ABCDEFGHIJKL'.split('').map(g => simStandings(g)[2]).filter(Boolean);
+    const top8 = allThirds.slice().sort((a,b) => {
+      if (b.pts !== a.pts) return b.pts - a.pts;
+      const gda = a.gf - a.ga, gdb = b.gf - b.ga;
+      if (gdb !== gda) return gdb - gda;
+      return b.gf - a.gf;
+    }).slice(0, 8);
+    const order = [74, 77, 79, 80, 81, 82, 85, 87];
+    const groupsKey = top8.map(t => t.grp).sort().join('');
+    const entry = (typeof FIFA_3RD_TABLE !== 'undefined' ? FIFA_3RD_TABLE[groupsKey] : null) || [];
+    const assign = {};
+    order.forEach((mn, i) => {
+      const g = entry[i];
+      if (g) {
+        const t = top8.find(x => x.grp === g);
+        if (t) assign[mn] = t.team;
+      }
+    });
+    _best3rdCache = assign;
+    return assign;
+  }
+
+  function invalidateBest3rd() { _best3rdCache = null; }
+
+  // ── Team resolution for KO labels ──────────────────────────────────────
+  function resolveTeam(label, forMatchNum) {
+    if (!label) return null;
+    // Already a real team name (registered in any group)
+    for (const g in GROUP_TEAMS) {
+      if (GROUP_TEAMS[g].includes(label)) return label;
+    }
+    // "1st X" / "2nd X" / "3rd X"
+    let m = label.match(/^(1st|2nd|3rd) ([A-L])$/);
+    if (m) {
+      const idx = { '1st':0, '2nd':1, '3rd':2 }[m[1]];
+      const grp = m[2];
+      if (!groupComplete(grp)) return null;
+      const s = simStandings(grp);
+      return (s[idx] && s[idx].team) || null;
+    }
+    // "Best 3rd"
+    if (label === 'Best 3rd') {
+      const a = best3rdAssignment();
+      return a[forMatchNum] || null;
+    }
+    // "W(M##)"
+    m = label.match(/^W\(M(\d+)\)$/);
+    if (m) return simWinner(parseInt(m[1], 10));
+    // "W(R16-#)"
+    m = label.match(/^W\(R16-(\d+)\)$/);
+    if (m) return simWinner(91 + parseInt(m[1], 10));
+    // "W(QF-#)"
+    m = label.match(/^W\(QF-(\d+)\)$/);
+    if (m) return simWinner(99 + parseInt(m[1], 10));
+    // "W(SF-#)"
+    m = label.match(/^W\(SF-(\d+)\)$/);
+    if (m) return simWinner(103 + parseInt(m[1], 10));
+    // "Loser SF-#"
+    m = label.match(/^Loser SF-(\d+)$/);
+    if (m) return simLoser(103 + parseInt(m[1], 10));
+    return null;
+  }
+
+  function resolveBoth(matchNum) {
+    const [hLab, aLab] = placeholderHA(matchNum);
+    const m = findMatch(matchNum);
+    if (!m) return { home: null, away: null, hLab, aLab };
+    // Group matches: home/away are direct teams from MATCHES (m[5]/m[6])
+    if ('ABCDEFGHIJKL'.includes(m[7])) {
+      return { home: m[5], away: m[6], hLab: m[5], aLab: m[6] };
+    }
+    // KO: resolve from placeholders
+    return {
+      home: resolveTeam(hLab, matchNum),
+      away: resolveTeam(aLab, matchNum),
+      hLab, aLab
+    };
+  }
+
+  function simWinner(matchNum) {
+    const r = SIM.results[matchNum];
+    if (!r) return null;
+    const { home, away } = resolveBoth(matchNum);
+    if (r.hs > r.as) return home;
+    if (r.as > r.hs) return away;
+    // Tie — penalty winner
+    if (r.pen === 'home') return home;
+    if (r.pen === 'away') return away;
+    return null;
+  }
+  function simLoser(matchNum) {
+    const w = simWinner(matchNum);
+    if (!w) return null;
+    const { home, away } = resolveBoth(matchNum);
+    return w === home ? away : home;
+  }
+
+  // ── Mutations ──────────────────────────────────────
+  function setHomeScore(matchNum, n) {
+    const r = SIM.results[matchNum] || {};
+    r.hs = n;
+    if (r.as == null) r.as = null;
+    SIM.results[matchNum] = r;
+    // If now decisive (not tied), clear pen
+    if (r.as != null && r.hs !== r.as) delete r.pen;
+    invalidateBest3rd();
+    save();
+  }
+  function setAwayScore(matchNum, n) {
+    const r = SIM.results[matchNum] || {};
+    r.as = n;
+    if (r.hs == null) r.hs = null;
+    SIM.results[matchNum] = r;
+    if (r.hs != null && r.hs !== r.as) delete r.pen;
+    invalidateBest3rd();
+    save();
+  }
+  function setPen(matchNum, side) {
+    const r = SIM.results[matchNum];
+    if (!r) return;
+    r.pen = side;
+    invalidateBest3rd();
+    save();
+  }
+  function clearResult(matchNum) {
+    delete SIM.results[matchNum];
+    invalidateBest3rd();
+    save();
+  }
+  function isComplete(matchNum) {
+    const r = SIM.results[matchNum];
+    if (!r) return false;
+    if (r.hs == null || r.as == null) return false;
+    const m = findMatch(matchNum);
+    const isKO = m && !'ABCDEFGHIJKL'.includes(m[7]);
+    if (isKO && r.hs === r.as && !r.pen) return false;
+    return true;
+  }
+
+  // ── Navigation ──────────────────────────────────────
+  function goToIdx(idx) {
+    SIM.currentIdx = Math.max(0, Math.min(ORDER.length - 1, idx));
+    save();
+    render();
+    // Scroll drawer to top
+    const dr = document.getElementById('simDrawer');
+    if (dr) dr.scrollTop = 0;
+  }
+  function goToMatchNum(num) {
+    const idx = ORDER.indexOf(num);
+    if (idx >= 0) goToIdx(idx);
+  }
+  function jumpToFirstUnplayedInGroup(g) {
+    const groupMatchNums = MATCHES.filter(mm => mm[7] === g).map(mm => mm[12]);
+    let target = groupMatchNums.find(n => !isComplete(n));
+    if (!target) target = groupMatchNums[0];
+    const idx = ORDER.indexOf(target);
+    if (idx >= 0) goToIdx(idx);
+  }
+  function nextMatch() { goToIdx(SIM.currentIdx + 1); }
+  function prevMatch() { goToIdx(SIM.currentIdx - 1); }
+
+  // ── Helpers for flag rendering ──────────────────────────────────────
+  function safeFlag(name, size) {
+    if (typeof flag === 'function' && name) {
+      const out = flag(name, size || 'sm');
+      return out;
+    }
+    return '<span class="flag-tbd">?</span>';
+  }
+  function flagOrTbd(name, size) {
+    if (!name) return '<span class="flag-tbd">?</span>';
+    return safeFlag(name, size);
+  }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  // ── Stage labels ──────────────────────────────────────
+  function stageLabel(matchNum) {
+    const m = findMatch(matchNum);
+    if (!m) return '';
+    const s = m[7];
+    if ('ABCDEFGHIJKL'.includes(s)) return 'Group ' + s;
+    if (s === 'R32') return 'Round of 32';
+    if (s === 'R16') return 'Round of 16';
+    if (s === 'QF') return 'Quarter-final';
+    if (s === 'SF') return 'Semi-final';
+    if (s === '3rd') return '3rd-place play-off';
+    if (s === 'Final') return 'FINAL';
+    return s;
+  }
+
+  function fmtMatchDate(m) {
+    // m = [Y, monthIdx, day, hour, min, ...]
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[m[1]] + ' ' + m[2];
+  }
+
+  // ── DRAWER RENDER ──────────────────────────────────────
+  function renderDrawer() {
+    const drawer = document.getElementById('simDrawerContent');
+    if (!drawer) return;
+
+    const total = ORDER.length;
+    const done = Object.keys(SIM.results).filter(k => isComplete(parseInt(k, 10))).length;
+    const pct = Math.round((done / total) * 100);
+
+    const matchNum = ORDER[SIM.currentIdx];
+    const m = findMatch(matchNum);
+    if (!m) { drawer.innerHTML = ''; return; }
+
+    const { home, away, hLab, aLab } = resolveBoth(matchNum);
+    const r = SIM.results[matchNum] || {};
+    const isKO = !'ABCDEFGHIJKL'.includes(m[7]);
+    const isFinal = m[7] === 'Final';
+    const stage = stageLabel(matchNum);
+
+    // Show champion block if final is done
+    let championHtml = '';
+    const finalMatchNum = 108;
+    const finalResult = SIM.results[finalMatchNum];
+    if (isComplete(finalMatchNum)) {
+      const winner = simWinner(finalMatchNum);
+      const fM = findMatch(finalMatchNum);
+      const fH = resolveTeam(KO_TEAM_TEMPLATES[finalMatchNum][0], finalMatchNum);
+      const fA = resolveTeam(KO_TEAM_TEMPLATES[finalMatchNum][1], finalMatchNum);
+      championHtml = `
+        <div class="sim-champion-block">
+          <i class="ph ph-trophy"></i>
+          <div class="sim-champion-label">Your Champion</div>
+          <div class="sim-champion-name">${flagOrTbd(winner,'lg')}${escapeHtml(winner||'?')}</div>
+          <div class="sim-champion-final">
+            Final: <b>${escapeHtml(fH||'?')} ${finalResult.hs}–${finalResult.as} ${escapeHtml(fA||'?')}</b>
+            ${finalResult.hs===finalResult.as && finalResult.pen ? '<span style="color:#F2C12E;font-size:10px;letter-spacing:.1em">(PEN)</span>' : ''}
+          </div>
+        </div>`;
+    }
+
+    // Header + progress + reset
+    let html = `
+      <div class="sim-header">
+        <div class="sim-header-title"><i class="ph ph-game-controller"></i>WC 2026 Simulator</div>
+        <div class="sim-header-actions">
+          <button class="sim-random-btn" onclick="window.__sim.randomFill()" title="Generate random results for all matches"${randomFilling ? ' disabled' : ''}>
+            <i class="ph ph-shuffle"></i>${randomFilling ? 'Filling…' : 'Random'}
+          </button>
+          <button class="sim-reset-btn" onclick="window.__sim.reset()" title="Clear all results and start over">
+            <i class="ph ph-arrow-counter-clockwise"></i>Reset
+          </button>
+        </div>
+      </div>
+      <div class="sim-progress">
+        <div class="sim-progress-label"><span>Progress</span><b>${done} / ${total} matches</b></div>
+        <div class="sim-progress-bar"><div class="sim-progress-fill" style="width:${pct}%"></div></div>
+      </div>
+      ${championHtml}
+    `;
+
+    // Match meta
+    html += `
+      <div class="sim-match-meta">
+        <span class="sim-match-stage">${stage}</span>
+        <span>Match ${SIM.currentIdx + 1} of ${total}</span>
+      </div>
+      <div class="sim-match-venue">
+        <i class="ph ph-map-pin"></i>${escapeHtml(m[8] || 'TBC')} · ${fmtMatchDate(m)}
+      </div>
+    `;
+
+    // Home row
+    const hSelected = r.hs;
+    const aSelected = r.as;
+    html += `
+      <div class="sim-team-row home">
+        <div class="sim-team-flag">${flagOrTbd(home,'lg')}</div>
+        <div class="sim-team-info">
+          <div class="sim-team-name ${home?'':'tbd'}">${escapeHtml(home || hLab || 'TBD')}</div>
+          ${isKO && hLab !== home ? `<div class="sim-team-placeholder">${escapeHtml(hLab)}</div>` : ''}
+        </div>
+        <div class="sim-score-row">
+          ${[0,1,2,3,4].map(n => `
+            <button class="sim-score-btn ${hSelected===n?'selected':''}"
+                    ${home?'':'disabled'}
+                    onclick="window.__sim.setHome(${matchNum}, ${n})">${n}</button>
+          `).join('')}
+        </div>
+      </div>
+      <div class="sim-team-row away">
+        <div class="sim-team-flag">${flagOrTbd(away,'lg')}</div>
+        <div class="sim-team-info">
+          <div class="sim-team-name ${away?'':'tbd'}">${escapeHtml(away || aLab || 'TBD')}</div>
+          ${isKO && aLab !== away ? `<div class="sim-team-placeholder">${escapeHtml(aLab)}</div>` : ''}
+        </div>
+        <div class="sim-score-row">
+          ${[0,1,2,3,4].map(n => `
+            <button class="sim-score-btn ${aSelected===n?'selected':''}"
+                    ${away?'':'disabled'}
+                    onclick="window.__sim.setAway(${matchNum}, ${n})">${n}</button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    // Penalty winner picker for tied KO matches
+    if (isKO && r.hs != null && r.as != null && r.hs === r.as) {
+      html += `
+        <div class="sim-pen-panel">
+          <div class="sim-pen-label"><i class="ph ph-target"></i>Penalty shootout — who wins?</div>
+          <div class="sim-pen-btns">
+            <button class="sim-pen-btn ${r.pen==='home'?'selected':''}" ${home?'':'disabled'}
+                    onclick="window.__sim.setPen(${matchNum}, 'home')">
+              ${flagOrTbd(home,'sm')}<span style="overflow:hidden;text-overflow:ellipsis">${escapeHtml(home||'?')}</span>
+            </button>
+            <button class="sim-pen-btn ${r.pen==='away'?'selected':''}" ${away?'':'disabled'}
+                    onclick="window.__sim.setPen(${matchNum}, 'away')">
+              ${flagOrTbd(away,'sm')}<span style="overflow:hidden;text-overflow:ellipsis">${escapeHtml(away||'?')}</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    // Navigation
+    const atStart = SIM.currentIdx === 0;
+    const atEnd = SIM.currentIdx === total - 1;
+    const canNext = isComplete(matchNum) || !atEnd;
+    const hasAnyResult = !!SIM.results[matchNum];
+    html += `
+      <div class="sim-nav">
+        <button class="sim-nav-btn" ${atStart?'disabled':''} onclick="window.__sim.prev()">
+          <i class="ph ph-arrow-left"></i>Back
+        </button>
+        ${hasAnyResult ? `
+          <button class="sim-clear-btn" onclick="window.__sim.clearMatch(${matchNum})"
+                  title="Clear this match result">
+            <i class="ph ph-x-circle"></i>Clear
+          </button>
+        ` : ''}
+        <button class="sim-nav-btn ${isComplete(matchNum)?'primary':''}" ${atEnd?'disabled':''}
+                onclick="window.__sim.next()">
+          ${isComplete(matchNum) ? 'Next' : 'Skip'}<i class="ph ph-arrow-right"></i>
+        </button>
+      </div>
+    `;
+
+    // Contextual sections
+    if (!isKO) {
+      // Group: show table and history
+      const grp = m[7];
+      const sorted = simStandings(grp);
+      const groupMatches = MATCHES.filter(mm => mm[7] === grp);
+
+      html += `
+        <div class="sim-section">
+          <div class="sim-section-label"><i class="ph ph-table"></i>Group ${grp} table</div>
+          <table class="sim-mini-table">
+            <thead><tr><th>Team</th><th class="num">P</th><th class="num">W</th><th class="num">D</th><th class="num">L</th><th class="num">GD</th><th class="num">Pts</th></tr></thead>
+            <tbody>${sorted.map((s,i) => {
+              const isPlayingNow = s.team === m[5] || s.team === m[6];
+              const cls = i===0?'q1':i===1?'q2':i===2?'q3':'elim';
+              const posCls = i<2?'q':(i===2?'q3':'');
+              const gd = (s.gf - s.ga >= 0 ? '+' : '') + (s.gf - s.ga);
+              return `<tr class="${cls} ${isPlayingNow?'current-team':''}">
+                <td><span class="pos ${posCls}">${i+1}</span>${safeFlag(s.team,'sm')}<span class="tn">${escapeHtml(s.team)}</span></td>
+                <td class="num">${s.p}</td><td class="num">${s.w}</td><td class="num">${s.d}</td><td class="num">${s.l}</td>
+                <td class="num">${gd}</td><td class="pts">${s.pts}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+        </div>
+        <div class="sim-section">
+          <div class="sim-section-label"><i class="ph ph-list-bullets"></i>Group ${grp} matches</div>
+          ${groupMatches.map(gm => {
+            const gnum = gm[12];
+            const gr = SIM.results[gnum];
+            const isCur = gnum === matchNum;
+            const idx = ORDER.indexOf(gnum);
+            const status = (gr && isComplete(gnum)) ? 'done' : (isCur ? 'current' : 'upcoming');
+            const sc = (gr && gr.hs!=null && gr.as!=null) ? `${gr.hs}–${gr.as}` : 'vs';
+            return `<div class="sim-history-row ${status==='upcoming'?'upcoming':''} ${isCur?'current':''} clickable"
+                         onclick="window.__sim.goToIdx(${idx})">
+              ${safeFlag(gm[5],'sm')}<span class="t" style="text-align:right">${escapeHtml(gm[5])}</span>
+              <span class="s">${sc}</span>
+              <span class="t">${escapeHtml(gm[6])}</span>${safeFlag(gm[6],'sm')}
+            </div>`;
+          }).join('')}
+        </div>
+      `;
+    } else {
+      // KO: show round history
+      const stageNm = m[7];
+      const roundMatches = MATCHES.filter(mm => mm[7] === stageNm);
+      const playedInRound = roundMatches.filter(mm => isComplete(mm[12])).length;
+
+      html += `
+        <div class="sim-section">
+          <div class="sim-section-label"><i class="ph ph-list-bullets"></i>${stage} — ${playedInRound}/${roundMatches.length} played</div>
+          ${roundMatches.map(km => {
+            const knum = km[12];
+            const kr = SIM.results[knum];
+            const isCur = knum === matchNum;
+            const idx = ORDER.indexOf(knum);
+            const rb = resolveBoth(knum);
+            const sc = (kr && kr.hs!=null && kr.as!=null) ? `${kr.hs}–${kr.as}` : 'vs';
+            const pen = (kr && kr.hs===kr.as && kr.pen) ? ' p' : '';
+            const status = isComplete(knum) ? 'done' : (isCur ? 'current' : 'upcoming');
+            return `<div class="sim-history-row ${status==='upcoming'?'upcoming':''} ${isCur?'current':''} clickable"
+                         onclick="window.__sim.goToIdx(${idx})">
+              ${flagOrTbd(rb.home,'sm')}<span class="t" style="text-align:right">${escapeHtml(rb.home||rb.hLab)}</span>
+              <span class="s">${sc}${pen}</span>
+              <span class="t">${escapeHtml(rb.away||rb.aLab)}</span>${flagOrTbd(rb.away,'sm')}
+            </div>`;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    drawer.innerHTML = html;
+  }
+
+  // ── BOARD RENDER ──────────────────────────────────────────────────────────
+  //   - 'bracket' view: re-uses the live knockout chart's drawing code
+  //     (initBracketDraw) against a synthetic MATCHES/MATCH_REPORTS built from
+  //     SIM.results, drawing into the simulator's own SVG.
+  //   - 'groups' view: 12 mini group standings cards.
+  function renderBoard() {
+    if (SIM.activeView === 'groups') {
+      const bracketView = document.getElementById('simViewBracket');
+      const groupsView = document.getElementById('simViewGroups');
+      if (bracketView) bracketView.style.display = 'none';
+      if (groupsView) groupsView.style.display = '';
+      renderSimGroups();
+    } else {
+      const bracketView = document.getElementById('simViewBracket');
+      const groupsView = document.getElementById('simViewGroups');
+      if (bracketView) bracketView.style.display = '';
+      if (groupsView) groupsView.style.display = 'none';
+      renderSimBracket();
+    }
+    // Sync toggle button active state
+    document.querySelectorAll('.sim-view-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.view === SIM.activeView);
+    });
+  }
+
+  // ── Build a synthetic MATCHES from SIM.results ──────────────────────────────
+  // The bracket function reads m[5]/m[6] (teams), m[7] (stage), m[10]/m[11]
+  // (scores), m[12] (match number), and m[13] (pen marker). For KO matches we
+  // resolve home/away from KO_TEAM_TEMPLATES through resolveTeam() so the chart
+  // shows real teams as soon as the simulator can determine them.
+  function buildSimMatches() {
+    const out = MATCHES.map(m => m.slice());
+    out.forEach(m => {
+      const num = m[12];
+      const r = SIM.results[num];
+      const stage = m[7];
+      const isKO = !'ABCDEFGHIJKL'.includes(stage);
+      // Reset KO team labels to their template placeholders so we can
+      // re-resolve from sim state. Group matches keep their real names.
+      if (isKO && KO_TEAM_TEMPLATES[num]) {
+        m[5] = KO_TEAM_TEMPLATES[num][0];
+        m[6] = KO_TEAM_TEMPLATES[num][1];
+      }
+      // Apply scores
+      if (r && r.hs != null && r.as != null) {
+        m[10] = r.hs;
+        m[11] = r.as;
+        // pen marker only for tied KO matches with a pen winner picked
+        if (isKO && r.hs === r.as && r.pen) {
+          m[13] = 'pen';
+        } else if (m.length > 13) {
+          m[13] = null;
+        }
+      } else {
+        m[10] = null;
+        m[11] = null;
+        if (m.length > 13) m[13] = null;
+      }
+    });
+    // Now resolve KO placeholders into real team names
+    const koNums = [73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,
+                    92,93,94,95,96,97,98,99,
+                    100,101,102,103,104,105,107,108];
+    koNums.forEach(num => {
+      const idx = out.findIndex(m => m[12] === num);
+      if (idx < 0) return;
+      const m = out[idx];
+      const home = resolveTeam(m[5], num);
+      const away = resolveTeam(m[6], num);
+      if (home) m[5] = home;
+      if (away) m[6] = away;
+    });
+    return out;
+  }
+
+  // Pen winners → MATCH_REPORTS-shaped object the bracket understands.
+  function buildSimMatchReports() {
+    const reports = {};
+    Object.keys(SIM.results).forEach(numStr => {
+      const num = parseInt(numStr, 10);
+      const r = SIM.results[num];
+      const m = findMatch(num);
+      if (!m || !r) return;
+      const isKO = !'ABCDEFGHIJKL'.includes(m[7]);
+      if (!isKO) return;
+      if (r.hs != null && r.as != null && r.hs === r.as && r.pen) {
+        const rb = resolveBoth(num);
+        const winner = r.pen === 'home' ? rb.home : rb.away;
+        if (winner) reports[num] = { pen_winner: winner };
+      }
+    });
+    return reports;
+  }
+
+  // Replace the SVG element with a shallow clone to strip any event listeners
+  // accumulated from previous initBracketDraw calls.
+  function refreshSimBracketSvg() {
+    const old = document.getElementById('simBracketChart');
+    if (!old) return null;
+    const fresh = old.cloneNode(false);
+    old.parentNode.replaceChild(fresh, old);
+    return fresh;
+  }
+
+  // ── Draw the bracket using the live chart's renderer ────────────────────────
+  function renderSimBracket() {
+    if (typeof initBracketDraw !== 'function') return;
+    refreshSimBracketSvg();
+    const simMatches = buildSimMatches();
+    const simReports = buildSimMatchReports();
+    try {
+      initBracketDraw({
+        svgId: 'simBracketChart',
+        tipId: 'simBracketTooltip',
+        drawerId: 'simBracketHiddenDrawer',
+        drawerContentId: 'simBracketHiddenDrawerContent',
+        matches: simMatches,
+        matchReports: simReports,
+        onMatchClick: function(matchNum, opts) {
+          // If the user clicked a slot label like "1st A" / "Best 3rd" on an
+          // unresolved R32 slot, jump to the source group so the drawer shows
+          // a group match they can actually pick. Once the group fills in, the
+          // bracket auto-resolves and clicks here go to the R32 match instead.
+          if (opts && opts.slotIdx != null && typeof KO_TEAM_TEMPLATES !== 'undefined') {
+            const r32MatchNum = 73 + (opts.slotIdx >> 1);
+            const sideIdx = opts.slotIdx & 1; // 0 = home, 1 = away
+            const labels = KO_TEAM_TEMPLATES[r32MatchNum];
+            const label = labels ? labels[sideIdx] : null;
+            if (label) {
+              const m = label.match(/^(?:1st|2nd|3rd)\s+([A-L])$/);
+              if (m && !groupComplete(m[1])) {
+                jumpToFirstUnplayedInGroup(m[1]);
+                return;
+              }
+              if (label === 'Best 3rd') {
+                const incomplete = 'ABCDEFGHIJKL'.split('').find(grp => !groupComplete(grp));
+                if (incomplete) {
+                  jumpToFirstUnplayedInGroup(incomplete);
+                  return;
+                }
+              }
+            }
+          }
+          goToMatchNum(matchNum);
+        }
+      });
+    } catch (err) {
+      console.error('Simulator bracket render failed:', err);
+    }
+    // After draw, overlay a pulsing ring on the current match's node.
+    overlayCurrentMatchHighlight();
+  }
+
+  // Highlight the current match on the freshly-drawn SVG by adding an
+  // animated ring around whichever node corresponds to ORDER[currentIdx].
+  function overlayCurrentMatchHighlight() {
+    const svg = document.getElementById('simBracketChart');
+    if (!svg) return;
+    const NS = 'http://www.w3.org/2000/svg';
+    const currNum = ORDER[SIM.currentIdx];
+    if (currNum == null) return;
+    // Geometry copied from initBracketDraw — same constants.
+    const R_R32 = 158, R_R16 = 116, R_QF = 80, R_SF = 46;
+    const N = 32;
+    const sa = i => i * (360 / N);
+    function polar(d, r) {
+      const rad = (d - 90) * Math.PI / 180;
+      return [r * Math.cos(rad), r * Math.sin(rad)];
+    }
+    function ma(round, i) {
+      const sz = { r32:2, r16:4, qf:8, sf:16 }[round];
+      return (sa(i*sz) + sa(i*sz + sz - 1)) / 2;
+    }
+    let cx = null, cy = null, ringR = 14;
+    if (currNum >= 73 && currNum <= 88) {
+      [cx, cy] = polar(ma('r32', currNum - 73), R_R32);
+      ringR = 13;
+    } else if (currNum >= 92 && currNum <= 99) {
+      [cx, cy] = polar(ma('r16', currNum - 92), R_R16);
+      ringR = 13;
+    } else if (currNum >= 100 && currNum <= 103) {
+      [cx, cy] = polar(ma('qf', currNum - 100), R_QF);
+      ringR = 13;
+    } else if (currNum >= 104 && currNum <= 105) {
+      [cx, cy] = polar(ma('sf', currNum - 104), R_SF);
+      ringR = 13;
+    } else if (currNum === 108) {
+      cx = 0; cy = 0; ringR = 28;
+    }
+    if (cx == null) return; // group matches & 3rd-place not on the chart
+    const ring = document.createElementNS(NS, 'circle');
+    ring.setAttribute('cx', cx);
+    ring.setAttribute('cy', cy);
+    ring.setAttribute('r', ringR);
+    ring.setAttribute('fill', 'none');
+    ring.setAttribute('stroke', '#F2C12E');
+    ring.setAttribute('stroke-width', '2');
+    ring.setAttribute('stroke-dasharray', '3 2');
+    ring.setAttribute('pointer-events', 'none');
+    ring.setAttribute('class', 'sim-current-ring');
+    svg.appendChild(ring);
+  }
+
+  // ── Group cards view ────────────────────────────────────────────────────────
+  function renderSimGroups() {
+    const grid = document.getElementById('simGroupsGrid');
+    if (!grid) return;
+    const currMatchNum = ORDER[SIM.currentIdx];
+
+    // Compute best 8 third-placed teams across all groups (for qualifying highlights)
+    const allThirds = 'ABCDEFGHIJKL'.split('').map(g => {
+      const sorted = simStandings(g);
+      return sorted[2] || null;
+    }).filter(Boolean);
+    const best8thirds = allThirds.slice().sort((a, b) => {
+      if (b.pts !== a.pts) return b.pts - a.pts;
+      const gda = a.gf - a.ga, gdb = b.gf - b.ga;
+      if (gdb !== gda) return gdb - gda;
+      return b.gf - a.gf;
+    }).slice(0, 8).map(t => t.team);
+
+    // Qualification status — only marks teams definitively in/out when a group is fully played.
+    // (Mid-group inference like the live Tables page is intentionally skipped: cleaner here.)
+    function simQualStatus(grp, idx, sortedTeams) {
+      const s = sortedTeams[idx];
+      if (!s) return null;
+      if (!groupComplete(grp)) return null;
+      if (idx < 2) return 'qualified';
+      if (idx === 2 && best8thirds.includes(s.team)) return 'qualified3';
+      return 'eliminated';
+    }
+
+    grid.innerHTML = 'ABCDEFGHIJKL'.split('').map(g => {
+      const sorted = simStandings(g);
+      const color = (typeof GC !== 'undefined' && GC[g]) || '#5060a0';
+      const groupHasCurrent = MATCHES.some(mm => mm[7] === g && mm[12] === currMatchNum);
+
+      const rowsHtml = sorted.map((s, i) => {
+        const isSoc = s.team === 'Australia';
+        const status = simQualStatus(g, i, sorted);
+        let rowCls = '';
+        let qualCls = 'gtc-pos';
+        if (status === 'qualified' || status === 'qualified3') {
+          qualCls = isSoc ? 'gtc-pos soc' : 'gtc-pos q';
+          rowCls = 'gtc-row-q';
+        } else if (status === 'eliminated') {
+          qualCls = isSoc ? 'gtc-pos soc' : 'gtc-pos elim';
+          rowCls = isSoc ? '' : 'gtc-row-elim';
+        } else if (isSoc) {
+          qualCls = 'gtc-pos soc';
+        }
+        const gd = (s.gf - s.ga >= 0 ? '+' : '') + (s.gf - s.ga);
+        return `<tr class="${rowCls}">
+          <td><div class="team-cell">
+            <div class="${qualCls}">✓</div>
+            <span class="gtc-flag">${safeFlag(s.team, 'sm')}</span>
+            <span class="gtc-name">${escapeHtml(s.team)}</span>
+          </div></td>
+          <td class="num">${s.p}</td>
+          <td class="num">${s.w}</td>
+          <td class="num">${s.d}</td>
+          <td class="num">${s.l}</td>
+          <td class="num hide-mob">${s.gf}</td>
+          <td class="num hide-mob">${s.ga}</td>
+          <td class="num">${gd}</td>
+          <td class="pts">${s.pts}</td>
+        </tr>`;
+      }).join('');
+
+      return `<div class="group-table-card ${groupHasCurrent ? 'current' : ''}"
+                   onclick="window.__sim.jumpToGroup('${g}')">
+        <div class="gtc-header" style="border-left-color:${color};background:${color}22">Group ${g}</div>
+        <table class="gtc-table">
+          <thead><tr>
+            <th>Team</th>
+            <th class="num">P</th>
+            <th class="num">W</th>
+            <th class="num">D</th>
+            <th class="num">L</th>
+            <th class="num hide-mob">GF</th>
+            <th class="num hide-mob">GA</th>
+            <th class="num">GD</th>
+            <th class="num">Pts</th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>`;
+    }).join('');
+
+    renderSim3rdPlaceTable();
+  }
+
+  // ── 3rd-place rankings table ────────────────────────────────────────────────
+  // Shows the team currently in 3rd in each group, ranked by the FIFA tiebreakers
+  // used to determine the 8 best-3rds that progress to R32. The filter toggles
+  // between "All 12" (every group's 3rd-placer) and "Qualifying 8" (top 8 only).
+  function renderSim3rdPlaceTable() {
+    const wrap = document.getElementById('sim3rdPlaceWrap');
+    if (!wrap) return;
+
+    // Build entries — one per group, even if 0 games played
+    const entries = 'ABCDEFGHIJKL'.split('').map(g => {
+      const sorted = simStandings(g);
+      const third = sorted[2] || null;
+      if (!third) return null;
+      return {
+        grp: g,
+        team: third.team,
+        p: third.p, w: third.w, d: third.d, l: third.l,
+        gf: third.gf, ga: third.ga, gd: third.gf - third.ga,
+        pts: third.pts,
+        grpComplete: groupComplete(g)
+      };
+    }).filter(Boolean);
+
+    // Rank by FIFA: pts → GD → GF
+    const ranked = entries.slice().sort((a, b) => {
+      if (b.pts !== a.pts) return b.pts - a.pts;
+      if (b.gd  !== a.gd ) return b.gd  - a.gd;
+      return b.gf - a.gf;
+    });
+
+    const filter = SIM.thirdFilter || 'all';
+    const shownRanked = (filter === 'qualifying') ? ranked.slice(0, 8) : ranked;
+
+    const qualifyingCount = Math.min(8, ranked.length);
+    const subtitleText = (filter === 'qualifying')
+      ? `Showing the top 8 — the slots that progress to R32`
+      : `All 12 groups · top 8 (highlighted) progress to R32`;
+
+    let rowsHtml = '';
+    shownRanked.forEach((e, i) => {
+      const rank = ranked.indexOf(e) + 1;
+      const qualifies = rank <= 8;
+      const cutoffBefore = (filter === 'all' && rank === 9);
+      const color = (typeof GC !== 'undefined' && GC[e.grp]) || '#5060a0';
+      const gdStr = (e.gd >= 0 ? '+' : '') + e.gd;
+      const flagHtml = safeFlag(e.team, 'sm');
+      if (cutoffBefore) {
+        rowsHtml += `<tr class="cutoff-row"><td colspan="8" class="sim-3rd-cutoff-label">
+          <i class="ph ph-scissors" style="font-size:11px;margin-right:4px"></i>Cut-off — below this line does NOT qualify
+        </td></tr>`;
+      }
+      rowsHtml += `<tr class="${qualifies ? 'q' : ''}">
+        <td><span class="sim-3rd-rank ${qualifies ? 'q' : ''}">${rank}</span></td>
+        <td>
+          <span class="sim-3rd-grp">
+            <span class="sim-3rd-grp-dot" style="background:${color}"></span>
+            <span class="sim-3rd-grp-letter">${e.grp}</span>
+          </span>
+        </td>
+        <td>
+          <div class="sim-3rd-team-cell">
+            ${flagHtml}
+            <span class="nm">${escapeHtml(e.team)}</span>
+          </div>
+        </td>
+        <td class="num">${e.p}</td>
+        <td class="num">${e.w}-${e.d}-${e.l}</td>
+        <td class="num">${e.gf}:${e.ga}</td>
+        <td class="num">${gdStr}</td>
+        <td class="pts">${e.pts}</td>
+      </tr>`;
+    });
+
+    wrap.innerHTML = `
+      <div class="sim-3rd-section">
+        <div class="sim-3rd-header">
+          <div>
+            <div class="sim-3rd-title"><i class="ph ph-medal"></i>3rd-Place Rankings</div>
+            <div class="sim-3rd-subtitle">${subtitleText}</div>
+          </div>
+          <div class="sim-3rd-filter">
+            <button class="sim-filter-btn ${filter==='all'?'active':''}"
+                    onclick="window.__sim.setThirdFilter('all')">All 12</button>
+            <button class="sim-filter-btn ${filter==='qualifying'?'active':''}"
+                    onclick="window.__sim.setThirdFilter('qualifying')">Qualifying 8</button>
+          </div>
+        </div>
+        <table class="sim-3rd-table">
+          <thead><tr>
+            <th>#</th>
+            <th>Grp</th>
+            <th>Team</th>
+            <th class="num">P</th>
+            <th class="num">W-D-L</th>
+            <th class="num">GF:GA</th>
+            <th class="num">GD</th>
+            <th class="num">Pts</th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // ── Render orchestration ──────────────────────────────────────
+  function render() {
+    renderBoard();
+    renderDrawer();
+  }
+
+  // Auto-advance after entering scores
+  function maybeAutoAdvance(matchNum) {
+    const r = SIM.results[matchNum];
+    const m = findMatch(matchNum);
+    if (!m || !r) return;
+    if (r.hs == null || r.as == null) return;
+    const isKO = !'ABCDEFGHIJKL'.includes(m[7]);
+    // For tied KO matches, wait for pen selection
+    if (isKO && r.hs === r.as && !r.pen) return;
+    // Only auto-advance if we're at the current match (not editing a past one)
+    if (matchNum !== ORDER[SIM.currentIdx]) return;
+    if (SIM.currentIdx >= ORDER.length - 1) return;
+    // Brief delay so user sees the result before advancing
+    setTimeout(() => {
+      if (SIM.currentIdx < ORDER.length - 1) {
+        SIM.currentIdx++;
+        save();
+        render();
+        const dr = document.getElementById('simDrawer');
+        if (dr) dr.scrollTop = 0;
+      }
+    }, 350);
+  }
+
+  // ── Random-fill helpers ─────────────────────────────────────────────────────
+  // Score distribution roughly tuned to real WC matches:
+  //   0:30%   1:35%   2:20%   3:10%   4:5%
+  function randomScore() {
+    const r = Math.random();
+    if (r < 0.30) return 0;
+    if (r < 0.65) return 1;
+    if (r < 0.85) return 2;
+    if (r < 0.95) return 3;
+    return 4;
+  }
+  // Stages, in dependency order: each batch only relies on earlier batches.
+  function randomFillStages() {
+    const groupStages = 'ABCDEFGHIJKL'.split('').map(g =>
+      MATCHES.filter(m => m[7] === g).map(m => m[12])
+    );
+    return [
+      ...groupStages,
+      [73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88], // R32
+      [92,93,94,95,96,97,98,99],                          // R16
+      [100,101,102,103],                                  // QF
+      [104,105],                                          // SF
+      [107],                                              // 3rd
+      [108]                                               // Final
+    ];
+  }
+  function startRandomFill() {
+    if (randomFilling) return;
+    if (!confirm('Generate random results for ALL 104 matches?\n\nThis will overwrite anything you\'ve already entered. The simulation runs at roughly one match per second so you can watch the groups and knockout progress — takes about a minute and a half.')) return;
+    randomFilling = true;
+    // Wipe existing
+    SIM.results = {};
+    invalidateBest3rd();
+    // Flatten the stage list into a single per-match queue (stages remain in
+    // dependency order: all groups → R32 → R16 → QF → SF → 3rd → Final).
+    const queue = randomFillStages().flat();
+    let i = 0;
+    // Per-match delay — group games are quicker, knockout games linger a touch
+    // longer so the user can savour pen shootouts and bracket updates.
+    function delayFor(num) {
+      const m = findMatch(num);
+      if (!m) return 600;
+      return 'ABCDEFGHIJKL'.includes(m[7]) ? 600 : 900;
+    }
+    function step() {
+      if (i >= queue.length) {
+        randomFilling = false;
+        SIM.currentIdx = ORDER.length - 1;
+        save();
+        render();
+        return;
+      }
+      const num = queue[i];
+      const m = findMatch(num);
+      if (m) {
+        const isKO = !'ABCDEFGHIJKL'.includes(m[7]);
+        let hs = randomScore();
+        let as_ = randomScore();
+        const r = { hs, as: as_ };
+        if (isKO && hs === as_) {
+          r.pen = Math.random() < 0.5 ? 'home' : 'away';
+        }
+        SIM.results[num] = r;
+      }
+      invalidateBest3rd();
+      // Walk the drawer pointer alongside the simulation so the user sees the
+      // currently-being-played match update as the chart fills in.
+      const orderIdx = ORDER.indexOf(num);
+      if (orderIdx >= 0) SIM.currentIdx = orderIdx;
+      const d = delayFor(num);
+      i++;
+      save();
+      render();
+      setTimeout(step, d);
+    }
+    step();
+  }
+
+  // ── Public API on window.__sim ──────────────────────────────────────
+  window.__sim = {
+    setHome: function(num, n) {
+      setHomeScore(num, n);
+      render();
+      maybeAutoAdvance(num);
+    },
+    setAway: function(num, n) {
+      setAwayScore(num, n);
+      render();
+      maybeAutoAdvance(num);
+    },
+    setPen: function(num, side) {
+      setPen(num, side);
+      render();
+      maybeAutoAdvance(num);
+    },
+    next: nextMatch,
+    prev: prevMatch,
+    goToIdx: goToIdx,
+    goToMatchNum: goToMatchNum,
+    jumpToGroup: function(g) {
+      // Jump to the first unplayed match in this group, or the first match if
+      // all are played. Same helper used when slot clicks redirect here.
+      jumpToFirstUnplayedInGroup(g);
+    },
+    setView: function(view) {
+      if (view !== 'bracket' && view !== 'groups') return;
+      if (SIM.activeView === view) return;
+      SIM.activeView = view;
+      save();
+      render();
+    },
+    setThirdFilter: function(f) {
+      if (f !== 'all' && f !== 'qualifying') return;
+      if (SIM.thirdFilter === f) return;
+      SIM.thirdFilter = f;
+      save();
+      // Only the 3rd-place table changes; re-render groups view if it's active.
+      if (SIM.activeView === 'groups') renderSim3rdPlaceTable();
+    },
+    randomFill: startRandomFill,
+    clearMatch: function(num) {
+      // Clear just this individual match. KO matches downstream auto-invalidate
+      // through team resolution (their placeholders no longer resolve), so the
+      // user can re-enter cleanly without a Reset.
+      clearResult(num);
+      render();
+    },
+    reset: function() {
+      if (randomFilling) return;
+      if (confirm('Reset the entire simulator? All your simulated results will be cleared.')) {
+        reset();
+      }
+    }
+  };
+
+  // ── Init ──────────────────────────────────────
+  function init() {
+    if (initialised) {
+      render();
+      return;
+    }
+    initialised = true;
+    buildOrder();
+    load();
+    // Jump to first unplayed match on first load
+    if (Object.keys(SIM.results).length === 0) {
+      SIM.currentIdx = 0;
+    } else {
+      // If currentIdx points to a finished match and not at end, keep going
+      // (user might have closed mid-tournament)
+    }
+    render();
+  }
+
+  // Expose initialiser called from switchTab
+  window.initSimulator = init;
+})();
+</script>
+
 </body>
 </html>
