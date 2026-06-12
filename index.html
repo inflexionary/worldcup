@@ -1131,7 +1131,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-s
 .db-next-vs{font-size:11px;color:var(--muted);font-weight:600}
 .db-next-info{flex:1;min-width:0}
 .db-next-teams-name{font-family:'Inter',sans-serif;font-weight:700;font-size:15px;color:var(--ink);margin-bottom:3px}
-.db-next-kickoff{font-size:13px;color:var(--ink);margin-bottom:2px}
+.db-next-kickoff{font-size:13px;color:var(--ink);margin-bottom:2px;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.db-next-day{font-family:'Inter',sans-serif;font-weight:800;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a8b4d0}
+.db-next-day-today{color:#F2C12E}
+.db-next-day-tomorrow{color:#F2C12E;opacity:.78}
+.db-next-sep{color:#4a5a80;font-weight:400}
 .db-next-city{font-size:12px;color:var(--muted);margin-bottom:2px}
 .db-next-countdown{font-size:11px;color:var(--accent);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
 .db-soc-row.db-next-match{background:var(--accent-lt);border-left:3px solid var(--accent);padding-left:10px}
@@ -1838,6 +1842,7 @@ footer .footer-credit { color: #5060a0; }
 .mw-warm .drawer-mw-reason { color: #e8a050; }
 /* ── Mobile bracket: hide SVG, show simple vertical list ── */
 .mobile-bracket { display: none; }
+.mb-desktop-tip { display: none; }
 
 @media (max-width: 760px) {
   #pane-knockout .bracket-wrap > svg,
@@ -1847,6 +1852,30 @@ footer .footer-credit { color: #5060a0; }
   .mobile-bracket { display: block; padding: 8px 10px 24px; }
   #pane-knockout .bracket-outer { flex-direction: column; }
   #pane-knockout .ko-drawer { display: none; }
+  .mb-desktop-tip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 10px 2px;
+    padding: 7px 10px;
+    background: rgba(242, 193, 46, 0.05);
+    border: 1px solid rgba(242, 193, 46, 0.18);
+    border-left: 2px solid #F2C12E;
+    border-radius: 5px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #8898c0;
+  }
+  .mb-desktop-tip i { color: #F2C12E; font-size: 13px; flex-shrink: 0; }
+  .mb-desktop-tip strong {
+    color: #F2C12E;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-right: 6px;
+  }
+  .mb-desktop-tip span { display: inline; }
 }
 
 .mb-round {
@@ -2281,6 +2310,12 @@ footer .footer-credit { color: #5060a0; }
       <div id="bracketTooltip" class="bracket-tooltip"></div>
 
       <!-- Mobile-only simple bracket list -->
+      <div class="mb-desktop-tip">
+        <i class="ph ph-monitor"></i>
+        <div>
+          <strong>Best on desktop</strong><span>The full circular bracket needs more room — this is a simplified list.</span>
+        </div>
+      </div>
       <div id="mobileBracket" class="mobile-bracket"></div>
     </div>
     <!-- Knockout sidebar drawer -->
@@ -2305,6 +2340,20 @@ footer .footer-credit { color: #5060a0; }
         </button>
       </div>
 
+      <!-- Continue-to-Knockout pause banner — shown during random fill between
+           the group stage and the knockout stage, so the user can review the
+           tables and 3rd-place rankings before the bracket starts filling. -->
+      <div class="sim-ko-pause" id="simKOPause" style="display:none">
+        <div class="sim-ko-pause-icon"><i class="ph-fill ph-pause-circle"></i></div>
+        <div class="sim-ko-pause-text">
+          <div class="sim-ko-pause-title">Group stage complete</div>
+          <div class="sim-ko-pause-body">Review the standings and 3rd-place rankings below. The knockout bracket starts when you're ready.</div>
+        </div>
+        <button class="sim-ko-pause-btn" onclick="window.__sim.continueKO()">
+          Continue to Knockout <i class="ph ph-arrow-right"></i>
+        </button>
+      </div>
+
       <!-- Bracket view -->
       <div class="sim-view sim-view-bracket" id="simViewBracket">
         <div class="sim-bracket-wrap">
@@ -2312,6 +2361,12 @@ footer .footer-credit { color: #5060a0; }
                style="width:100%;max-width:1080px;height:auto;display:block;margin:0 auto"></svg>
           <div id="simBracketTooltip" class="bracket-tooltip"></div>
           <!-- Mobile-only simple bracket list -->
+          <div class="mb-desktop-tip">
+            <i class="ph ph-monitor"></i>
+            <div>
+              <strong>Best on desktop</strong><span>The interactive bracket needs more room — this is a simplified list.</span>
+            </div>
+          </div>
           <div id="simMobileBracket" class="mobile-bracket"></div>
         </div>
       </div>
@@ -2446,7 +2501,7 @@ function openFixtureRow(idx, row) {
 const MATCHES = [
   // ── Group A ──
   [2026,5,12,5,0,"Mexico","South Africa","A","Mexico City",false,2,0,1],
-  [2026,5,12,12,0,"South Korea","Czechia","A","Guadalajara",false,null,null,2],
+  [2026,5,12,12,0,"South Korea","Czechia","A","Guadalajara",false,2,1,2],
   [2026,5,19,2,0,"Czechia","South Africa","A","Atlanta",false,null,null,3],
   [2026,5,19,11,0,"Mexico","South Korea","A","Guadalajara",false,null,null,4],
   [2026,5,25,11,0,"Czechia","Mexico","A","Mexico City",false,null,null,5],
@@ -2617,6 +2672,17 @@ function matchEndUTC(m){ return new Date(matchStartUTC(m).getTime()+matchDurMins
 function fmtAEST(date,opts){ return date.toLocaleString('en-AU',{timeZone:'Australia/Sydney',...opts}) }
 function fmtTime(date){ return fmtAEST(date,{hour:'2-digit',minute:'2-digit',hour12:false}) }
 function fmtDateShort(date){ return fmtAEST(date,{weekday:'short',day:'numeric',month:'short'}) }
+// dayLabel: returns "Today" / "Tomorrow" / weekday name (if within a week) /
+// "Sat 13 Jun" (further out), all relative to AEST so it matches the rest of the UI.
+function dayLabel(date, now) {
+  const aestKey = d => d.toLocaleDateString('en-CA', {timeZone:'Australia/Sydney'}); // YYYY-MM-DD
+  const sKey = aestKey(date), nKey = aestKey(now);
+  const diffDays = Math.round((new Date(sKey+'T00:00:00') - new Date(nKey+'T00:00:00')) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays >= 2 && diffDays <= 6) return fmtAEST(date,{weekday:'long'});
+  return fmtAEST(date,{weekday:'short',day:'numeric',month:'short'});
+}
 function aestHour(date){ return parseInt(fmtAEST(date,{hour:'2-digit',hour12:false})) }
 function aestMin(date){ return parseInt(fmtAEST(date,{minute:'2-digit'})) }
 
@@ -4406,6 +4472,16 @@ const MATCH_REPORTS = {
       {team: 'South Africa', player: 'Themba Zwane', minute: 80, type: 'red'},
       {team: 'Mexico', player: 'César Montes', minute: 90, type: 'red'}
     ]
+  },
+  2: {
+    goals: [
+      {team: 'Czechia', player: 'Ladislav Krejčí', minute: 59, assist: 'Vladimír Coufal', is_own_goal: false},
+      {team: 'South Korea', player: 'Hwang In-beom', minute: 67, assist: 'Lee Kang-in', is_own_goal: false},
+      {team: 'South Korea', player: 'Oh Hyeon-gyu', minute: 80, assist: 'Hwang In-beom', is_own_goal: false}
+    ],
+    cards: [
+      {team: 'South Korea', player: 'Lee Gi-hyuk', minute: 90, type: 'yellow'}
+    ]
   }
 };
 
@@ -4819,10 +4895,16 @@ function renderDashboard() {
         const s    = matchStartUTC(m);
         const diff = s - now;
         const hrs  = Math.floor(diff/3600000);
+        const days = Math.floor(diff/86400000);
         const mins = Math.floor((diff%3600000)/60000);
-        const countdown = hrs > 48
-          ? fmtAEST(s,{weekday:'long',day:'numeric',month:'long'})
-          : hrs > 0 ? `In ${hrs}h ${mins}m` : `In ${mins}m`;
+        const hrsInDay = Math.floor((diff%86400000)/3600000);
+        const countdown = days > 0 ? `In ${days}d ${hrsInDay}h`
+                        : hrs  > 0 ? `In ${hrs}h ${mins}m`
+                        : `In ${mins}m`;
+        const dl = dayLabel(s, now);
+        const dlClass = dl === 'Today'    ? ' db-next-day-today'
+                      : dl === 'Tomorrow' ? ' db-next-day-tomorrow'
+                      : '';
         const grp  = ['R32','R16','QF','SF','3rd','Final'].includes(m[7])
           ? m[7] : `Group ${m[7]}`;
         const r    = gameRating(m[5],m[6]);
@@ -4835,7 +4917,7 @@ function renderDashboard() {
           </div>
           <div class="db-next-info">
             <div class="db-next-teams-name">${m[5]} v ${m[6]} ${fire}</div>
-            <div class="db-next-kickoff"><strong>${fmtTime(s)} AEST</strong> · ${fmtAEST(s,{weekday:'short',day:'numeric',month:'short'})}</div>
+            <div class="db-next-kickoff"><span class="db-next-day${dlClass}">${dl.toUpperCase()}</span><span class="db-next-sep">·</span><strong>${fmtTime(s)} AEST</strong></div>
             <div class="db-next-city"><i class="ph ph-map-pin"></i> ${m[8]} · ${grp}</div>
             <div class="db-next-countdown">${countdown}</div>
           </div>
@@ -7007,6 +7089,70 @@ updateKnockoutNodeVisuals();
   margin: 0 auto;
   border-bottom: 1px solid #1a2448;
 }
+
+/* ── KO pause banner (shown between group → KO during random fill) ── */
+.sim-ko-pause {
+  position: fixed;
+  top: calc(var(--top-bar-h, 88px) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 28px);
+  max-width: 760px;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: linear-gradient(90deg, rgba(20, 24, 60, 0.97), rgba(20, 24, 60, 0.94));
+  border: 1px solid rgba(242, 193, 46, 0.45);
+  border-left: 4px solid #F2C12E;
+  border-radius: 8px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(242, 193, 46, 0.12);
+  backdrop-filter: blur(6px);
+  animation: simKoFadeIn .35s ease-out;
+}
+@keyframes simKoFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sim-ko-pause-icon { color: #F2C12E; font-size: 28px; flex-shrink: 0; line-height: 1; }
+.sim-ko-pause-text { flex: 1; min-width: 0; }
+.sim-ko-pause-title {
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #F2C12E;
+  margin-bottom: 3px;
+}
+.sim-ko-pause-body { font-size: 12px; color: #a8b4d0; line-height: 1.45; }
+.sim-ko-pause-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #F2C12E;
+  color: #0a0d20;
+  border: none;
+  border-radius: 5px;
+  padding: 9px 14px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .15s ease, transform .1s ease;
+}
+.sim-ko-pause-btn:hover { background: #ffd148; }
+.sim-ko-pause-btn:active { transform: scale(.97); }
+.sim-ko-pause-btn i { font-size: 14px; }
+@media (max-width: 760px) {
+  .sim-ko-pause { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 14px; }
+  .sim-ko-pause-icon { display: none; }
+  .sim-ko-pause-btn { justify-content: center; }
+}
 .sim-view-btn {
   background: transparent;
   border: none;
@@ -7095,6 +7241,17 @@ updateKnockoutNodeVisuals();
 }
 .sim-random-btn:disabled { opacity: .55; cursor: progress; color: #F2C12E; border-color: #F2C12E; }
 .sim-random-btn i { margin-right: 4px; }
+/* Resume button — gold filled to invite the next click after a pause */
+.sim-random-btn--resume {
+  color: #0a0d20;
+  background: #F2C12E;
+  border-color: #F2C12E;
+}
+.sim-random-btn--resume:hover:not(:disabled) {
+  color: #0a0d20;
+  background: #ffd148;
+  border-color: #ffd148;
+}
 
 /* ── 3rd place rankings table in Groups view ──────────────────────── */
 .sim-3rd-section {
@@ -7616,6 +7773,15 @@ updateKnockoutNodeVisuals();
 
   // Random-fill animation in progress?
   let randomFilling = false;
+  // User-initiated pause within the random fill (distinct from the
+  // group→knockout pause, which has its own banner + continueKO flow).
+  let userPausedFill = false;
+  // Handle to the active setTimeout between match steps, so we can cancel it
+  // immediately when the user clicks Pause.
+  let stepTimeoutHandle = null;
+  // Captured by startRandomFill so the public pause/resume API can reach the
+  // closure's step() function.
+  let stepFn = null;
 
   // ── Storage ──────────────────────────────────────
   function save() {
@@ -7636,10 +7802,35 @@ updateKnockoutNodeVisuals();
       }
     } catch(e){}
   }
+  function loadRealResults() {
+    // Populate SIM.results from any matches in MATCHES that have actual scores.
+    // For PEN-decided knockout draws, derive the winning side from MATCH_REPORTS.
+    MATCHES.forEach(m => {
+      const matchNum = m[12];
+      const hs = m[10], as_ = m[11];
+      if (hs == null || as_ == null) return;
+      const r = { hs, as: as_ };
+      if (hs === as_ && m[13] === 'pen' && typeof MATCH_REPORTS !== 'undefined') {
+        const rep = MATCH_REPORTS[matchNum];
+        if (rep && rep.pen_winner) {
+          r.pen = rep.pen_winner === m[5] ? 'home' : 'away';
+        }
+      }
+      SIM.results[matchNum] = r;
+    });
+  }
   function reset() {
     const prevView = SIM.activeView;
     const prevFilter = SIM.thirdFilter;
     SIM = { results: {}, currentIdx: 0, activeView: prevView || 'bracket', thirdFilter: prevFilter || 'all' };
+    // Load any matches that have already happened in real life — the user can
+    // simulate forward from the actual current state of the tournament.
+    loadRealResults();
+    // Advance the pointer past completed matches to the next one to fill.
+    while (SIM.currentIdx < ORDER.length && SIM.results[ORDER[SIM.currentIdx]]) {
+      SIM.currentIdx++;
+    }
+    if (SIM.currentIdx >= ORDER.length) SIM.currentIdx = ORDER.length - 1;
     invalidateBest3rd();
     save();
     render();
@@ -7977,15 +8168,40 @@ updateKnockoutNodeVisuals();
         </div>`;
     }
 
+    // Random button morphs based on state: Random / Pause / Resume.
+    // While the KO continue banner is up, we don't show a separate pause —
+    // that whole state has its own Continue button in the banner.
+    let randomBtnLabel = 'Random';
+    let randomBtnIcon  = 'ph-shuffle';
+    let randomBtnCall  = "window.__sim.randomFill()";
+    let randomBtnTitle = "Randomly fill any matches that don't already have a result. Real-world results and your own entries are preserved.";
+    let randomBtnDisabled = false;
+    if (randomFilling && pendingKOContinue) {
+      randomBtnLabel = 'Filling…';
+      randomBtnIcon  = 'ph-shuffle';
+      randomBtnCall  = '';
+      randomBtnDisabled = true;
+    } else if (randomFilling && userPausedFill) {
+      randomBtnLabel = 'Resume';
+      randomBtnIcon  = 'ph-play-fill';
+      randomBtnCall  = "window.__sim.resumeFill()";
+      randomBtnTitle = "Resume the random fill where it left off";
+    } else if (randomFilling) {
+      randomBtnLabel = 'Pause';
+      randomBtnIcon  = 'ph-pause-fill';
+      randomBtnCall  = "window.__sim.pauseFill()";
+      randomBtnTitle = "Pause the random fill — your progress is kept";
+    }
+
     // Header + progress + reset
     let html = `
       <div class="sim-header">
         <div class="sim-header-title"><i class="ph ph-game-controller"></i>WC 2026 Simulator</div>
         <div class="sim-header-actions">
-          <button class="sim-random-btn" onclick="window.__sim.randomFill()" title="Generate random results for all matches"${randomFilling ? ' disabled' : ''}>
-            <i class="ph ph-shuffle"></i>${randomFilling ? 'Filling…' : 'Random'}
+          <button class="sim-random-btn${userPausedFill ? ' sim-random-btn--resume' : ''}" onclick="${randomBtnCall}" title="${randomBtnTitle}"${randomBtnDisabled ? ' disabled' : ''}>
+            <i class="ph ${randomBtnIcon}"></i>${randomBtnLabel}
           </button>
-          <button class="sim-reset-btn" onclick="window.__sim.reset()" title="Clear all results and start over">
+          <button class="sim-reset-btn" onclick="window.__sim.reset()" title="Reset to actual real-world results — wipes your simulated results and reloads matches that have already been played, so you can simulate forward from now">
             <i class="ph ph-arrow-counter-clockwise"></i>Reset
           </button>
         </div>
@@ -8620,16 +8836,55 @@ updateKnockoutNodeVisuals();
       [108]                                               // Final
     ];
   }
+  // Pause state between group stage and knockout stage during random fill.
+  let pendingKOContinue = false;
+  let resumeFromPause = null;
+
+  function showKOPauseBanner(show) {
+    const el = document.getElementById('simKOPause');
+    if (el) el.style.display = show ? 'flex' : 'none';
+  }
+
   function startRandomFill() {
     if (randomFilling) return;
-    if (!confirm('Generate random results for ALL 104 matches?\n\nThis will overwrite anything you\'ve already entered. The simulation runs at roughly one match per second so you can watch the groups and knockout progress — takes about a minute and a half.')) return;
+
+    // Build the queue of matches that still need a result.
+    // Real-world results (and anything the user has manually entered) are
+    // preserved — random fill only touches what's currently empty.
+    const allMatches = randomFillStages().flat();
+    const queue = allMatches.filter(num => !SIM.results[num]);
+
+    if (queue.length === 0) {
+      alert('All 104 matches already have results.\n\nUse Reset if you want to start fresh from the real-world state and randomise from there.');
+      return;
+    }
+
+    const filled = allMatches.length - queue.length;
+    const groupRemaining = queue.filter(num => {
+      const mm = findMatch(num);
+      return mm && 'ABCDEFGHIJKL'.includes(mm[7]);
+    }).length;
+
+    let msg;
+    if (filled === 0) {
+      msg = `Generate random results for all ${queue.length} matches?`;
+    } else {
+      msg = `Randomise the ${queue.length} remaining match${queue.length === 1 ? '' : 'es'}?\n\n${filled} match${filled === 1 ? '' : 'es'} already filled (including any real-world results) will be kept as-is.`;
+    }
+    if (groupRemaining > 0 && queue.length > groupRemaining) {
+      msg += `\n\nGroup stage fills first — you'll have a chance to review the standings before knockout starts.`;
+    }
+    if (!confirm(msg)) return;
+
     randomFilling = true;
-    // Wipe existing
-    SIM.results = {};
+    pendingKOContinue = false;
+    resumeFromPause = null;
     invalidateBest3rd();
-    // Flatten the stage list into a single per-match queue (stages remain in
-    // dependency order: all groups → R32 → R16 → QF → SF → 3rd → Final).
-    const queue = randomFillStages().flat();
+
+    // If any group matches remain to fill, watch them happen in the Group
+    // Tables view; otherwise jump straight to the bracket.
+    SIM.activeView = (groupRemaining > 0) ? 'groups' : 'bracket';
+
     let i = 0;
     // Per-match delay — group games are quicker, knockout games linger a touch
     // longer so the user can savour pen shootouts and bracket updates.
@@ -8641,9 +8896,18 @@ updateKnockoutNodeVisuals();
     function step() {
       if (i >= queue.length) {
         randomFilling = false;
+        stepFn = null;
+        stepTimeoutHandle = null;
         SIM.currentIdx = ORDER.length - 1;
         save();
         render();
+        return;
+      }
+      // If the user paused right before this step started (e.g., between
+      // setTimeout scheduling and the callback firing), stop here. step() will
+      // be re-invoked by resumeFill().
+      if (userPausedFill) {
+        stepTimeoutHandle = null;
         return;
       }
       const num = queue[i];
@@ -8667,9 +8931,65 @@ updateKnockoutNodeVisuals();
       i++;
       save();
       render();
-      setTimeout(step, d);
+
+      // If we just finished the last group match in the queue and the next
+      // match is a KO match, pause and let the user review standings before
+      // continuing.
+      const justFinishedGroup = m && 'ABCDEFGHIJKL'.includes(m[7]);
+      if (justFinishedGroup && i < queue.length) {
+        const nextM = findMatch(queue[i]);
+        if (nextM && !'ABCDEFGHIJKL'.includes(nextM[7])) {
+          pendingKOContinue = true;
+          // Ensure groups view stays visible — that's where the user reviews.
+          SIM.activeView = 'groups';
+          save();
+          render();
+          showKOPauseBanner(true);
+          // Schedule a resume callback the Continue button can invoke.
+          resumeFromPause = function() {
+            pendingKOContinue = false;
+            resumeFromPause = null;
+            // Switch to the bracket so the user can watch the KO fill in.
+            SIM.activeView = 'bracket';
+            showKOPauseBanner(false);
+            save();
+            render();
+            // Small breath before the first KO match drops in.
+            stepTimeoutHandle = setTimeout(step, 500);
+          };
+          return; // Wait — no setTimeout. User clicks Continue to resume.
+        }
+      }
+
+      // If the user clicked Pause during this step, don't schedule the next.
+      if (userPausedFill) {
+        stepTimeoutHandle = null;
+        return;
+      }
+      stepTimeoutHandle = setTimeout(step, d);
     }
+    stepFn = step;
     step();
+  }
+
+  function pauseRandomFill() {
+    // Only valid during an active random fill that isn't already paused for
+    // some other reason (e.g. waiting at the group→KO continue prompt).
+    if (!randomFilling || pendingKOContinue || userPausedFill) return;
+    userPausedFill = true;
+    if (stepTimeoutHandle) {
+      clearTimeout(stepTimeoutHandle);
+      stepTimeoutHandle = null;
+    }
+    render();
+  }
+
+  function resumeRandomFill() {
+    if (!userPausedFill || !stepFn) return;
+    userPausedFill = false;
+    render();
+    // Small delay so the resume feels like an action rather than instant.
+    stepTimeoutHandle = setTimeout(stepFn, 200);
   }
 
   // ── Public API on window.__sim ──────────────────────────────────────
@@ -8714,6 +9034,11 @@ updateKnockoutNodeVisuals();
       if (SIM.activeView === 'groups') renderSim3rdPlaceTable();
     },
     randomFill: startRandomFill,
+    pauseFill: pauseRandomFill,
+    resumeFill: resumeRandomFill,
+    continueKO: function() {
+      if (resumeFromPause) resumeFromPause();
+    },
     clearMatch: function(num) {
       // Clear just this individual match. KO matches downstream auto-invalidate
       // through team resolution (their placeholders no longer resolve), so the
@@ -8722,8 +9047,17 @@ updateKnockoutNodeVisuals();
       render();
     },
     reset: function() {
-      if (randomFilling) return;
+      // Block reset while actively filling, but allow it while paused at the
+      // KO continue prompt OR when the user has paused the fill manually.
+      if (randomFilling && !pendingKOContinue && !userPausedFill) return;
       if (confirm('Reset the entire simulator? All your simulated results will be cleared.')) {
+        pendingKOContinue = false;
+        resumeFromPause = null;
+        userPausedFill = false;
+        if (stepTimeoutHandle) { clearTimeout(stepTimeoutHandle); stepTimeoutHandle = null; }
+        stepFn = null;
+        randomFilling = false;
+        showKOPauseBanner(false);
         reset();
       }
     }
@@ -8738,12 +9072,16 @@ updateKnockoutNodeVisuals();
     initialised = true;
     buildOrder();
     load();
-    // Jump to first unplayed match on first load
+    // First-time visit (no saved sim): start with the real-world results
+    // already in, so the user simulates forward from where the tournament
+    // actually is rather than from a blank slate of 104 unplayed matches.
     if (Object.keys(SIM.results).length === 0) {
-      SIM.currentIdx = 0;
-    } else {
-      // If currentIdx points to a finished match and not at end, keep going
-      // (user might have closed mid-tournament)
+      loadRealResults();
+      while (SIM.currentIdx < ORDER.length && SIM.results[ORDER[SIM.currentIdx]]) {
+        SIM.currentIdx++;
+      }
+      if (SIM.currentIdx >= ORDER.length) SIM.currentIdx = ORDER.length - 1;
+      save();
     }
     render();
   }
