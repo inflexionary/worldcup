@@ -225,10 +225,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-s
 .gtc-pos{width:18px;height:18px;border-radius:50%;background:var(--offwhite);color:var(--muted);font-family:'Inter',sans-serif;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .gtc-pos.q{background:var(--grass);color:white}
 .gtc-pos.q3{background:#8b5e0a;color:white}
+.gtc-pos.prov{background:#c9a932;color:#3a2e08}
 .gtc-pos.soc{background:var(--gold);color:var(--pitch)}
 .gtc-pos.elim{background:#3a1010;color:#a04040}
 .gtc-row-q td{background:rgba(45,106,79,.08)}
 .gtc-row-q .gtc-name{color:#4abf6a;font-weight:700}
+.gtc-row-prov td{background:rgba(201,169,50,.08)}
+.gtc-row-prov .gtc-name{color:#a08a18;font-weight:600}
 .gtc-row-elim td{opacity:.5}
 .gtc-row-elim .gtc-name{color:var(--muted);text-decoration:line-through}
 .gtc-flag{line-height:1;flex-shrink:0;display:flex;align-items:center}
@@ -954,31 +957,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-s
 .db-soc-date,.db-soc-city{font-size:12px;color:var(--muted);text-align:center;padding:2px 14px}
 .db-soc-date{font-weight:600;color:var(--grass)}
 
-/* Today's schedule */
-.db-today-sched{background:transparent;border-top:1px solid #1a2448;padding:0 16px 16px}
-.db-section-hdr{font-family:'Inter',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;color:var(--pitch);letter-spacing:.06em;padding:14px 0 8px;border-bottom:1px solid var(--border);margin-bottom:4px}
-.db-today-list{display:flex;flex-direction:column}
-.db-today-row{
-  display:flex;align-items:center;gap:10px;padding:8px 0;
-  border-bottom:1px solid #eef0f3;cursor:pointer;transition:background .08s;
-}
-.db-today-row:last-child{border-bottom:none}
-.db-today-row:hover{background:rgba(255,255,255,.04)}
-.db-live-row{background:var(--accent-lt) !important}
-.db-today-time{font-family:'Inter',sans-serif;font-weight:700;font-size:14px;color:var(--pitch);width:80px;flex-shrink:0;display:flex;align-items:center;gap:5px}
-.db-live-pip{background:var(--live-red);color:white;font-family:'Inter',sans-serif;font-size:8px;font-weight:800;letter-spacing:.1em;padding:1px 4px;border-radius:2px;animation:livepulse 1.5s ease-in-out infinite}
-.db-today-teams{flex:1;font-family:'Inter',sans-serif;font-weight:600;font-size:14px;color:var(--pitch);text-transform:uppercase;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-.db-today-score{width:60px;flex-shrink:0;text-align:center;font-family:'Inter',sans-serif;font-size:15px;font-weight:900;color:var(--pitch)}
-.db-today-city{width:90px;flex-shrink:0;font-size:11px;color:var(--muted);text-align:right}
-
 @media(max-width:600px){
   .db-cards{grid-template-columns:1fr;padding:8px;gap:8px}
   .db-cd-unit strong{font-size:38px}
-  .db-today-city{display:none}
   .db-title{font-size:clamp(32px,10vw,80px)}
-  .db-today-row{gap:6px}
-  .db-today-time{width:60px;font-size:12px}
-  .db-today-teams{font-size:12px}
   .db-result-teams{font-size:11px}
   .db-next-teams,.db-mw-teams{font-size:13px}
 }
@@ -1380,6 +1362,7 @@ body { background: #07091a; color: #c0cae0; }
 .gtc-pos { background: #111630; color: #4a5a80; }
 .gtc-pos.q { background: #1a3a2a; color: #4abf6a; }
 .gtc-pos.q3 { background: #2a2000; color: #F2C12E; }
+.gtc-pos.prov { background: #2e2810; color: #d4ba4a; }
 .gtc-pos.soc { background: #2a2000; color: #F2C12E; }
 .gtc-pos.elim { background: #2a0a0a; color: #8a3030; }
 .gtc-name { color: #d0d8f0; }
@@ -1387,6 +1370,8 @@ body { background: #07091a; color: #c0cae0; }
 .gtc-table .pts { color: #F2C12E; }
 .gtc-row-q td { background: rgba(26,80,50,.15) !important; }
 .gtc-row-q .gtc-name { color: #4abf6a !important; font-weight: 700; }
+.gtc-row-prov td { background: rgba(180,160,40,.10) !important; }
+.gtc-row-prov .gtc-name { color: #d4ba4a !important; font-weight: 600; }
 .gtc-row-elim td { opacity: 0.4 !important; }
 .gtc-row-elim .gtc-name { color: #4a5a80 !important; text-decoration: line-through; }
 
@@ -1538,17 +1523,7 @@ body { background: #07091a; color: #c0cae0; }
 .db-soc-vs { color: #3a4870; }
 .db-soc-time { color: #F2C12E; }
 .db-soc-date, .db-soc-city { color: #4a5a80; }
-.db-section-hdr { color: #5060a0; border-bottom: 1px solid #1a2448; background: transparent; padding: 10px 16px 6px; }
-.db-today-sched { background: transparent; }
-.db-today-row { border-bottom: 1px solid #141d38; background: transparent; }
-.db-today-row:hover { background: rgba(255,255,255,.04); }
-.db-today-time { color: #c0cae0; }
-.db-today-teams { color: #c0cae0; }
-.db-today-score { color: #F2C12E; }
-.db-today-city { color: #5868a0; }
 .db-vs { color: #2a3860; }
-.db-live-pip { background: #e84040; color: #fff; }
-.db-live-row { background: #1a0808 !important; }
 .db-soc-row { background: #12100a !important; }
 .db-next-match--big .db-next-teams-name { color: #e8eaf6; }
 .db-next-vs { color: #3a4870; }
@@ -1673,6 +1648,63 @@ footer .footer-credit { color: #5060a0; }
   min-width: 0;
   overflow-y: auto;
   transition: flex .25s ease;
+}
+
+/* Click-to-trace hint above the bracket — subtle navy strip with a soft gold
+   accent icon. Disappears in the mobile bracket fallback. */
+.bracket-wrap, .sim-bracket-wrap { position: relative; }
+.bracket-click-hint {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
+  background: rgba(14, 20, 40, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(242, 193, 46, 0.22);
+  border-radius: 5px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: #a8b4d0;
+  font-family: 'Inter', sans-serif;
+  max-width: 280px;
+}
+.bracket-click-hint i {
+  color: #F2C12E;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.bracket-click-hint span { flex: 1; }
+.bracket-click-hint .hint-dismiss {
+  background: transparent;
+  border: 0;
+  padding: 2px 5px;
+  margin: 0;
+  color: #6f7a96;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 3px;
+  font-family: inherit;
+}
+.bracket-click-hint .hint-dismiss:hover { color: #c4cce0; background: rgba(255,255,255,0.06); }
+@media (max-width: 760px) {
+  .bracket-click-hint { display: none; }
+}
+/* Subtle hover feedback on the per-team hit-area rects so users can see the
+   click target. Active click-locked rect gets a slightly stronger background. */
+#bracketChart rect[data-team-hit],
+#simBracketChart rect[data-team-hit] {
+  transition: fill 120ms ease;
+}
+#bracketChart rect[data-team-hit]:hover,
+#simBracketChart rect[data-team-hit]:hover {
+  fill: rgba(255, 255, 255, 0.06);
 }
 .ko-drawer {
   width: 0;
@@ -2305,6 +2337,11 @@ footer .footer-credit { color: #5060a0; }
 <div class="tab-pane" id="pane-knockout">
   <div class="bracket-outer">
     <div class="bracket-wrap">
+      <div class="bracket-click-hint" data-hint-id="bracket-live">
+        <i class="ph ph-cursor-click"></i>
+        <span>Click a team in any group panel to trace their path. The champion's full path glows in their flag colour.</span>
+        <button class="hint-dismiss" type="button" aria-label="Dismiss tip" title="Dismiss">×</button>
+      </div>
       <svg id="bracketChart" width="1080" height="1080" viewBox="-540 -531 1080 1071" style="width:100%;max-width:1080px;height:auto;display:block"></svg>
 
       <div id="bracketTooltip" class="bracket-tooltip"></div>
@@ -2357,6 +2394,11 @@ footer .footer-credit { color: #5060a0; }
       <!-- Bracket view -->
       <div class="sim-view sim-view-bracket" id="simViewBracket">
         <div class="sim-bracket-wrap">
+          <div class="bracket-click-hint" data-hint-id="bracket-sim">
+            <i class="ph ph-cursor-click"></i>
+            <span>Click a team in any group panel to trace their path. Once a champion is set, their full path glows in their flag colour.</span>
+            <button class="hint-dismiss" type="button" aria-label="Dismiss tip" title="Dismiss">×</button>
+          </div>
           <svg id="simBracketChart" width="1080" height="1080" viewBox="-540 -531 1080 1071"
                style="width:100%;max-width:1080px;height:auto;display:block;margin:0 auto"></svg>
           <div id="simBracketTooltip" class="bracket-tooltip"></div>
@@ -2398,6 +2440,27 @@ footer .footer-credit { color: #5060a0; }
   <p class="footer-credit">All times AEST · <a href="https://www.peakefootball.com.au" target="_blank">peakefootball.com.au</a></p>
 </footer>
 <script>
+// ── Bracket click-hint chip: dismissible, persisted in localStorage ───────────
+(function initBracketHintDismiss() {
+  const hints = document.querySelectorAll('.bracket-click-hint');
+  if (!hints.length) return;
+  const KEY = 'bracketClickHintDismissed';
+  let dismissed = false;
+  try { dismissed = localStorage.getItem(KEY) === '1'; } catch (e) {}
+  if (dismissed) {
+    hints.forEach(h => h.style.display = 'none');
+    return;
+  }
+  hints.forEach(hint => {
+    const btn = hint.querySelector('.hint-dismiss');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      hints.forEach(h => h.style.display = 'none');
+      try { localStorage.setItem(KEY, '1'); } catch (e) {}
+    });
+  });
+})();
+
 function renderCalendarMobile(container) {
   container.innerHTML = '';
   const now = new Date();
@@ -2601,22 +2664,22 @@ const MATCHES = [
   [2026,6,4,11,30,"1st K","Best 3rd","R32","Kansas City",false,null,null,87,null],
   [2026,6,4,4,0,"2nd D","2nd G","R32","Dallas",false,null,null,88,null],
 
-  [2026,6,5,2,0,"W(M73)","W(M74)","R16","Houston",false,null,null,92,null],
-  [2026,6,5,7,0,"W(M75)","W(M76)","R16","Philadelphia",false,null,null,93,null],
-  [2026,6,6,6,0,"W(M77)","W(M78)","R16","New York/NJ",false,null,null,94,null],
-  [2026,6,6,10,0,"W(M79)","W(M80)","R16","Mexico City",false,null,null,95,null],
-  [2026,6,7,5,0,"W(M81)","W(M82)","R16","Dallas",false,null,null,96,null],
-  [2026,6,7,10,0,"W(M83)","W(M84)","R16","San Francisco",false,null,null,97,null],
-  [2026,6,8,2,0,"W(M85)","W(M86)","R16","Atlanta",false,null,null,98,null],
-  [2026,6,8,6,0,"W(M87)","W(M88)","R16","Vancouver",false,null,null,99,null],
-  [2026,6,10,6,0,"W(R16-1)","W(R16-2)","QF","Boston",false,null,null,100,null],
-  [2026,6,11,5,0,"W(R16-3)","W(R16-4)","QF","Los Angeles",false,null,null,101,null],
-  [2026,6,12,7,0,"W(R16-5)","W(R16-6)","QF","Miami",false,null,null,102,null],
-  [2026,6,12,11,0,"W(R16-7)","W(R16-8)","QF","Kansas City",false,null,null,103,null],
-  [2026,6,15,5,0,"W(QF-1)","W(QF-2)","SF","Dallas",false,null,null,104,null],
-  [2026,6,16,5,0,"W(QF-3)","W(QF-4)","SF","Atlanta",false,null,null,105,null],
-  [2026,6,19,7,0,"Loser SF-1","Loser SF-2","3rd","Miami",false,null,null,107,null],
-  [2026,6,20,5,0,"W(SF-1)","W(SF-2)","Final","New York/NJ",false,null,null,108,null],
+  [2026,6,5,3,0,"W(M73)","W(M75)","R16","Houston",false,null,null,90,null],
+  [2026,6,5,7,0,"W(M74)","W(M77)","R16","Philadelphia",false,null,null,89,null],
+  [2026,6,6,6,0,"W(M76)","W(M78)","R16","New York/NJ",false,null,null,91,null],
+  [2026,6,6,10,0,"W(M79)","W(M80)","R16","Mexico City",false,null,null,92,null],
+  [2026,6,7,5,0,"W(M83)","W(M84)","R16","Dallas",false,null,null,93,null],
+  [2026,6,7,10,0,"W(M81)","W(M82)","R16","Seattle",false,null,null,94,null],
+  [2026,6,8,2,0,"W(M86)","W(M88)","R16","Atlanta",false,null,null,95,null],
+  [2026,6,8,6,0,"W(M85)","W(M87)","R16","Vancouver",false,null,null,96,null],
+  [2026,6,10,6,0,"W(R16-1)","W(R16-2)","QF","Boston",false,null,null,97,null],
+  [2026,6,11,5,0,"W(R16-3)","W(R16-4)","QF","Los Angeles",false,null,null,98,null],
+  [2026,6,12,7,0,"W(R16-5)","W(R16-6)","QF","Miami",false,null,null,99,null],
+  [2026,6,12,11,0,"W(R16-7)","W(R16-8)","QF","Kansas City",false,null,null,100,null],
+  [2026,6,15,5,0,"W(QF-1)","W(QF-2)","SF","Dallas",false,null,null,101,null],
+  [2026,6,16,5,0,"W(QF-3)","W(QF-4)","SF","Atlanta",false,null,null,102,null],
+  [2026,6,19,7,0,"Loser SF-1","Loser SF-2","3rd","Miami",false,null,null,103,null],
+  [2026,6,20,5,0,"W(SF-1)","W(SF-2)","Final","New York/NJ",false,null,null,104,null],
 ];
 
 // Baked team data — loaded instantly, no API call needed
@@ -2642,6 +2705,29 @@ const FLAGS = {
   "England":"gb-eng","Croatia":"hr","Ghana":"gh","Panama":"pa",
   "TBD":null,
 };
+
+// ── Team flag-primary colours, used to trace a team's path through the bracket
+// when the user clicks the team in a group panel, and to draw a permanent
+// champion ribbon once the Final is decided. Tuned to read well on the dark
+// navy bracket background — each value is the most recognisable hue from each
+// nation's flag (red/blue/green/yellow), brightened where the actual flag
+// colour is too dark to pop against the navy. ───────────────────────────────
+const TEAM_COLORS = {
+  "Mexico":"#1f9e3c","South Africa":"#ffb81c","South Korea":"#e63946","Czechia":"#3b7bd9",
+  "Canada":"#ff3a48","Bosnia & Herz.":"#3666b8","Qatar":"#a01640","Switzerland":"#ff5050",
+  "Brazil":"#ffcf00","Morocco":"#1a9a4d","Haiti":"#2a4ec9","Scotland":"#4a8cd1",
+  "USA":"#5b59a3","Paraguay":"#d52b1e","Australia":"#ffcd00","Türkiye":"#e30a17",
+  "Germany":"#ffce00","Curaçao":"#3b6bd1","Ivory Coast":"#f77f00","Ecuador":"#fde00d",
+  "Netherlands":"#ff9b00","Japan":"#d4002d","Sweden":"#ffcd00","Tunisia":"#e70013",
+  "Belgium":"#fae042","Egypt":"#e63946","Iran":"#23a042","New Zealand":"#5b85d8",
+  "Spain":"#d62828","Cape Verde":"#5a7fd8","Saudi Arabia":"#1a9a4d","Uruguay":"#4a9cd1",
+  "France":"#4a72d8","Senegal":"#00853f","Iraq":"#cf2027","Norway":"#d52b1e",
+  "Argentina":"#75aadb","Algeria":"#1a8c4a","Austria":"#ed2939","Jordan":"#e8484c",
+  "Portugal":"#1a8c4a","DR Congo":"#3a9fbf","Uzbekistan":"#1eb53a","Colombia":"#ffcd00",
+  "England":"#ed2939","Croatia":"#e60026","Ghana":"#fcd116","Panama":"#d21034",
+  "TBD":null,
+};
+function teamCol(team) { return TEAM_COLORS[team] || '#F2C12E'; }
 
 // ── Group colours (shared across all tabs) ──────────────────────────────────
 const GROUP_COLORS = {
@@ -3663,17 +3749,17 @@ const KO_TEAM_TEMPLATES = {
   82:['1st G','Best 3rd'], 83:['2nd K','2nd L'],    84:['1st H','2nd J'],
   85:['1st B','Best 3rd'], 86:['1st J','2nd H'],    87:['1st K','Best 3rd'],
   88:['2nd D','2nd G'],
-  // R16
-  92:['W(M73)','W(M74)'],  93:['W(M75)','W(M76)'],  94:['W(M77)','W(M78)'],
-  95:['W(M79)','W(M80)'],  96:['W(M81)','W(M82)'],  97:['W(M83)','W(M84)'],
-  98:['W(M85)','W(M86)'],  99:['W(M87)','W(M88)'],
+  // R16 — FIFA M89-M96 pairings (top half: M89,M90,M93,M94 / bottom half: M91,M92,M95,M96)
+  89:['W(M74)','W(M77)'],  90:['W(M73)','W(M75)'],  91:['W(M76)','W(M78)'],
+  92:['W(M79)','W(M80)'],  93:['W(M83)','W(M84)'],  94:['W(M81)','W(M82)'],
+  95:['W(M86)','W(M88)'],  96:['W(M85)','W(M87)'],
   // QF
-  100:['W(R16-1)','W(R16-2)'], 101:['W(R16-3)','W(R16-4)'],
-  102:['W(R16-5)','W(R16-6)'], 103:['W(R16-7)','W(R16-8)'],
+  97:['W(R16-1)','W(R16-2)'], 98:['W(R16-3)','W(R16-4)'],
+  99:['W(R16-5)','W(R16-6)'], 100:['W(R16-7)','W(R16-8)'],
   // SF
-  104:['W(QF-1)','W(QF-2)'], 105:['W(QF-3)','W(QF-4)'],
+  101:['W(QF-1)','W(QF-2)'], 102:['W(QF-3)','W(QF-4)'],
   // 3rd/Final
-  107:['Loser SF-1','Loser SF-2'], 108:['W(SF-1)','W(SF-2)'],
+  103:['Loser SF-1','Loser SF-2'], 104:['W(SF-1)','W(SF-2)'],
 };
 
 function computeKnockoutTeams() {
@@ -3785,13 +3871,14 @@ function computeKnockoutTeams() {
   }
 
   // Bracket progression map: matchNum → [homeFromMatch, awayFromMatch]
+  // R16 follows FIFA's actual cross-bracket layout so 1X and 2X can only meet in Final
   const bracketMap = {
-    92:  [73, 74],  93:  [75, 76],  94:  [77, 78],  95:  [79, 80],
-    96:  [81, 82],  97:  [83, 84],  98:  [85, 86],  99:  [87, 88],
-    100: [92, 93],  101: [94, 95],  102: [96, 97],  103: [98, 99],
-    104: [100,101], 105: [102,103],
-    107: null, // 3rd place - handled separately
-    108: [104,105],
+    89:  [74, 77],  90:  [73, 75],  91:  [76, 78],  92:  [79, 80],
+    93:  [83, 84],  94:  [81, 82],  95:  [86, 88],  96:  [85, 87],
+    97:  [89, 90],  98:  [93, 94],  99:  [91, 92],  100: [95, 96],
+    101: [97, 98],  102: [99, 100],
+    103: null, // 3rd place - handled separately
+    104: [101, 102],
   };
 
   MATCHES.forEach((m, idx) => {
@@ -3818,9 +3905,9 @@ function computeKnockoutTeams() {
     if (!w) return null;
     return w === m[5] ? m[6] : m[5];
   }
-  const thirdIdx = MATCHES.findIndex(x => x[12] === 107);
+  const thirdIdx = MATCHES.findIndex(x => x[12] === 103);
   if (thirdIdx >= 0) {
-    const l1 = loserOf(104), l2 = loserOf(105);
+    const l1 = loserOf(101), l2 = loserOf(102);
     if (l1 || l2) {
       const m = MATCHES[thirdIdx];
       const h = l1 || m[5], a = l2 || m[6];
@@ -3855,8 +3942,23 @@ function renderGroupTables(){
     return b.gf-a.gf;
   }).slice(0,8).map(t=>t.team);
 
+  // Pre-compute whether all 12 groups are fully played — required before any
+  // 3rd-placed team can be marked as confirmed-qualified, since best-3rd
+  // ranking is a global comparison across all groups.
+  const _allGroupsFinished = 'ABCDEFGHIJKL'.split('').every(g => {
+    const gms = MATCHES.filter(m => m[7] === g);
+    return gms.length > 0 && gms.every(m => m[10] !== null);
+  });
+
   // ── Qualification certainty logic ──────────────────────────────
-  // Returns 'qualified', 'eliminated', or null (still in play)
+  // Returns 'qualified', 'qualified3', 'eliminated', or null (still in play).
+  // Rules:
+  //   • 1st / 2nd: green ONLY once their position is mathematically certain
+  //     (group complete, or 3rd-place can't catch them).
+  //   • 3rd: green ONLY once ALL 12 groups are complete AND they sit in the
+  //     top 8 best-3rd ranking. Otherwise neutral, even if their own group
+  //     is done — other groups could still bump them out.
+  //   • 4th: eliminated once group is complete (mathematically out).
   function qualStatus(sorted, idx, best8thirds) {
     const s = sorted[idx];
     const grp = s.grp;
@@ -3866,10 +3968,19 @@ function renderGroupTables(){
     const gamesLeft = totalGames - playedGames;
 
     if (gamesLeft === 0) {
-      // Group complete — positions are final
+      // Group complete — positions within this group are final
       if (idx < 2) return 'qualified';
-      if (idx === 2 && best8thirds.includes(s.team)) return 'qualified3';
-      return 'eliminated';
+      if (idx === 2) {
+        // 3rd-placer: confirmation requires every group finished
+        if (_allGroupsFinished) {
+          return best8thirds.includes(s.team) ? 'qualified3' : 'eliminated';
+        }
+        // Group done, global picture not yet — show tentative state:
+        //   • currently in best-8 thirds → provisional3 (yellow-amber)
+        //   • outside top 8 → neutral, could still climb in
+        return best8thirds.includes(s.team) ? 'provisional3' : null;
+      }
+      return 'eliminated'; // 4th
     }
 
     // How many games does this team still have to play?
@@ -3909,6 +4020,7 @@ function renderGroupTables(){
       let rowCls = '';
       let qualCls = 'gtc-pos';
       if (status === 'qualified' || status === 'qualified3') { qualCls = isSoc ? 'gtc-pos soc' : 'gtc-pos q'; rowCls = 'gtc-row-q'; }
+      else if (status === 'provisional3') { qualCls = isSoc ? 'gtc-pos soc' : 'gtc-pos prov'; rowCls = 'gtc-row-prov'; }
       else if (status === 'eliminated') { qualCls = isSoc ? 'gtc-pos soc' : 'gtc-pos elim'; rowCls = isSoc ? '' : 'gtc-row-elim'; }
       else if (isSoc) { qualCls = 'gtc-pos soc'; }
       const gd = (s.gf-s.ga >= 0 ? '+' : '') + (s.gf-s.ga);
@@ -3953,7 +4065,13 @@ function renderGroupTables(){
     }).map((s,i) => {
       const qualifies = i < 8;
       const isSoc = s.team === 'Australia';
-      const cls = isSoc ? 'gtc-pos soc' : qualifies ? 'gtc-pos q3' : 'gtc-pos';
+      // Same rule as the group tables: confirmed green only when ALL groups
+      // are finished; otherwise top-8 thirds show as provisional (yellow-amber).
+      let cls;
+      if (isSoc) cls = 'gtc-pos soc';
+      else if (!qualifies) cls = 'gtc-pos';
+      else if (_allGroupsFinished) cls = 'gtc-pos q';
+      else cls = 'gtc-pos prov';
       const gd = (s.gf-s.ga >= 0?'+':'')+(s.gf-s.ga);
       return `<tr>
         <td><div class="team-cell">
@@ -4987,33 +5105,6 @@ function renderDashboard() {
 
   html += `</div>`; // end db-cards
 
-  // ── TODAY'S FULL SCHEDULE ──
-  const todayKey = now.toLocaleDateString('en-CA',{timeZone:'Australia/Sydney'});
-  const todayFull = MATCHES.filter(m =>
-    matchStartUTC(m).toLocaleDateString('en-CA',{timeZone:'Australia/Sydney'}) === todayKey
-  ).sort((a,b) => matchStartUTC(a) - matchStartUTC(b));
-
-  if (todayFull.length) {
-    html += `<div class="db-today-sched">
-      <div class="db-section-hdr">Today's Schedule</div>
-      <div class="db-today-list">
-        ${todayFull.map(m => {
-          const s = matchStartUTC(m);
-          const state = matchState(m, now);
-          const hasScore = m[10] !== null && m[11] !== null;
-          const isSoc = m[9];
-          const _todGc=(typeof GROUP_COLORS!=='undefined'&&GROUP_COLORS[m[7]])||'#5060a0';
-          return `<div class="db-today-row${isSoc?' db-soc-row':''}${state==='live'?' db-live-row':''}" style="border-left:3px solid ${_todGc}60" onclick="jumpToFixture(${MATCHES.indexOf(m)})">
-            <div class="db-today-time" style="color:${_todGc}">${fmtTime(s)}${state==='live'?'<span class="db-live-pip">LIVE</span>':''}</div>
-            <div class="db-today-teams">${flag(m[5])} ${m[5]} <span class="db-vs">v</span> ${flag(m[6])} ${m[6]}</div>
-            <div class="db-today-score">${hasScore?`<strong style="color:${_todGc}">${m[10]}–${m[11]}</strong>`:'–'}</div>
-            <div class="db-today-city">${m[8]}</div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>`;
-  }
-
   el.innerHTML = html;
 }
 
@@ -5460,8 +5551,8 @@ function syncBracketState() {
       const hw = STATE.knockoutResults[h];
       const aw = STATE.knockoutResults[a];
       // Also check MATCHES for R16+ results
-      const stageMap = {'R16-1':92,'R16-2':93,'R16-3':94,'R16-4':95,'R16-5':96,'R16-6':97,'R16-7':98,'R16-8':99,
-                        'QF-1':100,'QF-2':101,'QF-3':102,'QF-4':103,'SF-1':104,'SF-2':105,'FINAL':108};
+      const stageMap = {'R16-1':89,'R16-2':90,'R16-3':93,'R16-4':94,'R16-5':91,'R16-6':92,'R16-7':95,'R16-8':96,
+                        'QF-1':97,'QF-2':98,'QF-3':99,'QF-4':100,'SF-1':101,'SF-2':102,'FINAL':104};
       const mn = stageMap[key];
       if (mn) {
         const mm = MATCHES.find(x => x[12]===mn);
@@ -5735,32 +5826,37 @@ function toSyd(edt){
 function isElim(t){return STATE.eliminated.includes(t);}
 
 const R32=[
-  {id:'M73',home:'2nd A',away:'2nd B',    hg:'A',ag:'B',  ag3:null,            date:'Sun 28 Jun',edt:'3:00 PM ET', venue:'SoFi Stadium, Los Angeles'},
+  // Ordered by FIFA bracket position so adjacent pairs feed the correct R16.
+  // Top half (positions 0–7) → SF-1 ; Bottom half (positions 8–15) → SF-2.
+  // 1X/2X same-group teams now only meet in the Final.
   {id:'M74',home:'1st E',away:'Best 3rd', hg:'E',ag:null, ag3:['A','B','C','D','F'],date:'Mon 29 Jun',edt:'4:30 PM ET', venue:'Gillette Stadium, Boston'},
-  {id:'M75',home:'1st F',away:'2nd C',    hg:'F',ag:'C',  ag3:null,            date:'Mon 29 Jun',edt:'9:00 PM ET', venue:'Estadio BBVA, Monterrey'},
-  {id:'M76',home:'1st C',away:'2nd F',    hg:'C',ag:'F',  ag3:null,            date:'Mon 29 Jun',edt:'1:00 PM ET', venue:'NRG Stadium, Houston'},
   {id:'M77',home:'1st I',away:'Best 3rd', hg:'I',ag:null, ag3:['C','D','F','G','H'],date:'Tue 30 Jun',edt:'5:00 PM ET', venue:'MetLife Stadium, New York/NJ'},
+  {id:'M73',home:'2nd A',away:'2nd B',    hg:'A',ag:'B',  ag3:null,            date:'Sun 28 Jun',edt:'3:00 PM ET', venue:'SoFi Stadium, Los Angeles'},
+  {id:'M75',home:'1st F',away:'2nd C',    hg:'F',ag:'C',  ag3:null,            date:'Mon 29 Jun',edt:'9:00 PM ET', venue:'Estadio BBVA, Monterrey'},
+  {id:'M83',home:'2nd K',away:'2nd L',    hg:'K',ag:'L',  ag3:null,            date:'Thu 2 Jul',edt:'7:00 PM ET', venue:'BMO Field, Toronto'},
+  {id:'M84',home:'1st H',away:'2nd J',    hg:'H',ag:'J',  ag3:null,            date:'Thu 2 Jul',edt:'3:00 PM ET', venue:'SoFi Stadium, Los Angeles'},
+  {id:'M81',home:'1st D',away:'Best 3rd', hg:'D',ag:null, ag3:['B','E','F','I','J'],date:'Wed 1 Jul',edt:'8:00 PM ET', venue:"Levi's Stadium, San Francisco"},
+  {id:'M82',home:'1st G',away:'Best 3rd', hg:'G',ag:null, ag3:['A','E','H','I','J'],date:'Wed 1 Jul',edt:'4:00 PM ET', venue:'Lumen Field, Seattle'},
+  {id:'M76',home:'1st C',away:'2nd F',    hg:'C',ag:'F',  ag3:null,            date:'Mon 29 Jun',edt:'1:00 PM ET', venue:'NRG Stadium, Houston'},
   {id:'M78',home:'2nd E',away:'2nd I',    hg:'E',ag:'I',  ag3:null,            date:'Tue 30 Jun',edt:'1:00 PM ET', venue:"Levi's Stadium, San Francisco"},
   {id:'M79',home:'1st A',away:'Best 3rd', hg:'A',ag:null, ag3:['C','E','F','H','I'],date:'Tue 30 Jun',edt:'9:00 PM ET', venue:'Estadio Azteca, Mexico City'},
   {id:'M80',home:'1st L',away:'Best 3rd', hg:'L',ag:null, ag3:['E','H','I','J','K'],date:'Wed 1 Jul',edt:'12:00 PM ET', venue:'Mercedes-Benz Stadium, Atlanta'},
-  {id:'M81',home:'1st D',away:'Best 3rd', hg:'D',ag:null, ag3:['B','E','F','I','J'],date:'Wed 1 Jul',edt:'8:00 PM ET', venue:"Levi's Stadium, San Francisco"},
-  {id:'M82',home:'1st G',away:'Best 3rd', hg:'G',ag:null, ag3:['A','E','H','I','J'],date:'Wed 1 Jul',edt:'4:00 PM ET', venue:'Lumen Field, Seattle'},
-  {id:'M83',home:'2nd K',away:'2nd L',    hg:'K',ag:'L',  ag3:null,            date:'Thu 2 Jul',edt:'7:00 PM ET', venue:'BMO Field, Toronto'},
-  {id:'M84',home:'1st H',away:'2nd J',    hg:'H',ag:'J',  ag3:null,            date:'Thu 2 Jul',edt:'3:00 PM ET', venue:'SoFi Stadium, Los Angeles'},
-  {id:'M85',home:'1st B',away:'Best 3rd', hg:'B',ag:null, ag3:['E','F','G','I','J'],date:'Thu 2 Jul',edt:'11:00 PM ET', venue:'BC Place, Vancouver'},
   {id:'M86',home:'1st J',away:'2nd H',    hg:'J',ag:'H',  ag3:null,            date:'Fri 3 Jul',edt:'6:00 PM ET', venue:'Hard Rock Stadium, Miami'},
-  {id:'M87',home:'1st K',away:'Best 3rd', hg:'K',ag:null, ag3:['D','E','I','J','L'],date:'Fri 3 Jul',edt:'9:30 PM ET', venue:'Arrowhead Stadium, Kansas City'},
   {id:'M88',home:'2nd D',away:'2nd G',    hg:'D',ag:'G',  ag3:null,            date:'Fri 3 Jul',edt:'2:00 PM ET', venue:'AT&T Stadium, Dallas'},
+  {id:'M85',home:'1st B',away:'Best 3rd', hg:'B',ag:null, ag3:['E','F','G','I','J'],date:'Thu 2 Jul',edt:'11:00 PM ET', venue:'BC Place, Vancouver'},
+  {id:'M87',home:'1st K',away:'Best 3rd', hg:'K',ag:null, ag3:['D','E','I','J','L'],date:'Fri 3 Jul',edt:'9:30 PM ET', venue:'Arrowhead Stadium, Kansas City'},
 ];
 const R16=[
-  {id:'R16-1',home:'W(M73)',away:'W(M74)',date:'Sat 4 Jul',edt:'12:00 PM ET',venue:'NRG Stadium, Houston'},
-  {id:'R16-2',home:'W(M75)',away:'W(M76)',date:'Sat 4 Jul',edt:'5:00 PM ET',venue:'Lincoln Financial Field, Philadelphia'},
-  {id:'R16-3',home:'W(M77)',away:'W(M78)',date:'Sun 5 Jul',edt:'4:00 PM ET',venue:'MetLife Stadium, New York/NJ'},
-  {id:'R16-4',home:'W(M79)',away:'W(M80)',date:'Sun 5 Jul',edt:'8:00 PM ET',venue:'Estadio Azteca, Mexico City'},
-  {id:'R16-5',home:'W(M81)',away:'W(M82)',date:'Mon 6 Jul',edt:'3:00 PM ET',venue:'AT&T Stadium, Dallas'},
-  {id:'R16-6',home:'W(M83)',away:'W(M84)',date:'Mon 6 Jul',edt:'8:00 PM ET',venue:"Levi's Stadium, San Francisco"},
-  {id:'R16-7',home:'W(M85)',away:'W(M86)',date:'Tue 7 Jul',edt:'12:00 PM ET',venue:'Mercedes-Benz Stadium, Atlanta'},
-  {id:'R16-8',home:'W(M87)',away:'W(M88)',date:'Tue 7 Jul',edt:'4:00 PM ET',venue:'BC Place, Vancouver'},
+  // Spiral positions 0–7. Each pair (0,1)/(2,3)/(4,5)/(6,7) feeds one QF.
+  // Top half (0–3) → SF-1, bottom half (4–7) → SF-2.
+  {id:'R16-1',home:'W(M74)',away:'W(M77)',date:'Sat 4 Jul',edt:'5:00 PM ET',venue:'Lincoln Financial Field, Philadelphia'}, // FIFA M89
+  {id:'R16-2',home:'W(M73)',away:'W(M75)',date:'Sat 4 Jul',edt:'1:00 PM ET',venue:'NRG Stadium, Houston'},                  // FIFA M90
+  {id:'R16-3',home:'W(M83)',away:'W(M84)',date:'Mon 6 Jul',edt:'3:00 PM ET',venue:'AT&T Stadium, Dallas'},                  // FIFA M93
+  {id:'R16-4',home:'W(M81)',away:'W(M82)',date:'Mon 6 Jul',edt:'8:00 PM ET',venue:'Lumen Field, Seattle'},                  // FIFA M94
+  {id:'R16-5',home:'W(M76)',away:'W(M78)',date:'Sun 5 Jul',edt:'4:00 PM ET',venue:'MetLife Stadium, New York/NJ'},          // FIFA M91
+  {id:'R16-6',home:'W(M79)',away:'W(M80)',date:'Sun 5 Jul',edt:'8:00 PM ET',venue:'Estadio Azteca, Mexico City'},           // FIFA M92
+  {id:'R16-7',home:'W(M86)',away:'W(M88)',date:'Tue 7 Jul',edt:'12:00 PM ET',venue:'Mercedes-Benz Stadium, Atlanta'},        // FIFA M95
+  {id:'R16-8',home:'W(M85)',away:'W(M87)',date:'Tue 7 Jul',edt:'4:00 PM ET',venue:'BC Place, Vancouver'},                   // FIFA M96
 ];
 const QF=[
   {id:'QF-1',home:'W(R16-1)',away:'W(R16-2)',date:'Thu 9 Jul',edt:'4:00 PM ET',venue:'Gillette Stadium, Boston'},
@@ -6051,10 +6147,10 @@ const _teamCol = (team) => {
 
 // Bracket key → MATCHES match number map (for R16/QF/SF/Final)
 const _bracketMatchNum = {
-  'R16-1':92,'R16-2':93,'R16-3':94,'R16-4':95,
-  'R16-5':96,'R16-6':97,'R16-7':98,'R16-8':99,
-  'QF-1':100,'QF-2':101,'QF-3':102,'QF-4':103,
-  'SF-1':104,'SF-2':105,'FINAL':108
+  'R16-1':89,'R16-2':90,'R16-3':93,'R16-4':94,
+  'R16-5':91,'R16-6':92,'R16-7':95,'R16-8':96,
+  'QF-1':97,'QF-2':98,'QF-3':99,'QF-4':100,
+  'SF-1':101,'SF-2':102,'FINAL':104
 };
 
 function _winnerOf(matchKey) {
@@ -6183,10 +6279,15 @@ function renderGroupTeams(g,container,px,py,bw,bh){
     const qualified = _qualifiedTeams.has(t);
     const elim = _eliminatedTeams.has(t);
     const dotOp = elim ? '.12' : qualified ? '.9' : '.5';
-    mk('circle',{cx:px-bw/2+10,cy:ry,r:2.5,fill:GC[g],opacity:dotOp},container);
+    // Transparent hit-area rect so a tap anywhere in the row registers, not
+    // just on the rendered glyphs (SVG text default is pointer-events:
+    // visiblePainted, which means clicking padding misses the text).
+    mk('rect',{x:px-bw/2+5,y:ry-9,width:bw-10,height:18,fill:'transparent',
+       'pointer-events':'all','data-team-hit':t,'style':'cursor:pointer'},container);
+    mk('circle',{cx:px-bw/2+10,cy:ry,r:2.5,fill:GC[g],opacity:dotOp,'pointer-events':'none'},container);
     const textFill = elim ? '#2e3450' : qualified ? GC[g] : '#7888a8';
     const tEl=mk('text',{x:px-bw/2+17,y:ry+1,'dominant-baseline':'middle','font-size':'11',
-      fill:textFill,'font-weight':qualified?'700':'400','font-family':'Inter,sans-serif','data-team':t},container);
+      fill:textFill,'font-weight':qualified?'700':'400','font-family':'Inter,sans-serif','data-team':t,'pointer-events':'none'},container);
     tEl.textContent=t;
     if(elim) tEl.setAttribute('text-decoration','line-through');
   });
@@ -6279,7 +6380,7 @@ function matchTip(m,groups){
   // Look up actual score from MATCHES for any match (R32, R16+)
   let matchNum;
   if (m.id.startsWith('M')) matchNum = parseInt(m.id.slice(1));
-  else if (m.id === 'FINAL') matchNum = 108;
+  else if (m.id === 'FINAL') matchNum = 104;
   else matchNum = _bracketMatchNum[m.id];
   const mData = matchNum ? _MATCHES.find(x => x[12]===matchNum) : null;
   const hasScore = mData && mData[10]!==null && mData[11]!==null;
@@ -6448,9 +6549,341 @@ function groupTip(g){
 <div class="tt-section"><b>Possible R32 opponents</b><div class="tt-pill-wrap">${oppPills}</div></div>`;
 }
 
+// ── Team path highlight + champion ribbon overlay ────────────────────────────
+// Two transparent groups inserted BETWEEN the bracket's edges/cables and its
+// nodes. They paint on top of background, slot rectangles and edge curves —
+// so the colour ribbon is clearly visible along the path — but UNDER all the
+// round R32/R16/QF/SF/Final nodes, so the nodes cover the middle of the
+// ribbon (no bisection). The halo glow extends past each node radius, so
+// each node along the path still reads as ringed in the team's colour.
+// `championLayer` holds the permanent ribbon for the FINAL winner; visible
+// when the bracket is in its default state. `teamPathLayer` holds the
+// temporary path drawn when the user clicks any team in a group panel.
+const championLayer = mk('g',{'pointer-events':'none','class':'champion-ribbon-layer'},svg);
+const teamPathLayer = mk('g',{'pointer-events':'none','class':'team-path-layer'},svg);
+// Reparent in front of edges, behind nodes — anchor on the first R32 node.
+(function reparentLayersBehindNodes() {
+  const anchor = REG.r32Els && REG.r32Els[0];
+  if (!anchor || !anchor.parentNode) return;
+  svg.insertBefore(championLayer, anchor);
+  svg.insertBefore(teamPathLayer, anchor);
+})();
+let _activeTeamPath = null;
+
+// Computes which slot/r32/r16/qf/sf indices a team traversed, walking forward
+// from their R32 match (looked up in _MATCHES, which has resolved team names
+// after groups are decided) through STATE.knockoutResults at each round.
+// Returns null if the team isn't in any R32 match yet. Indices stop at the
+// round where the team lost — so an R16 exit returns {slot, r32, r16} only.
+function computeTeamPath(team) {
+  if (!team || team==='TBD') return null;
+  // Map: R32 match number → spiral position (the bracket was reordered to
+  // follow FIFA's cross-bracket layout, so position no longer equals mn-73).
+  const POS_BY_MATCH = {74:0,77:1,73:2,75:3,83:4,84:5,81:6,82:7,76:8,78:9,79:10,80:11,86:12,88:13,85:14,87:15};
+  // Find this team in R32 matches via _MATCHES (m[5]=home, m[6]=away, m[12]=num)
+  let slotIdx = -1;
+  let foundMn = -1;
+  let side = 0;
+  for (let mn = 73; mn <= 88; mn++) {
+    const m = _MATCHES.find(x => x[12] === mn);
+    if (!m) continue;
+    if (m[5] === team) { foundMn = mn; side = 0; break; }
+    if (m[6] === team) { foundMn = mn; side = 1; break; }
+  }
+  if (foundMn < 0) return null;
+  const r32Pos = POS_BY_MATCH[foundMn];
+  slotIdx = r32Pos * 2 + side;
+  const out = { slot: slotIdx, r32: r32Pos };
+  if (STATE.knockoutResults['M' + foundMn] !== team) return out;
+  const r16Idx = r32Pos >> 1;
+  out.r16 = r16Idx;
+  if (STATE.knockoutResults['R16-' + (r16Idx + 1)] !== team) return out;
+  const qfIdx = r16Idx >> 1;
+  out.qf = qfIdx;
+  if (STATE.knockoutResults['QF-' + (qfIdx + 1)] !== team) return out;
+  const sfIdx = qfIdx >> 1;
+  out.sf = sfIdx;
+  if (STATE.knockoutResults['SF-' + (sfIdx + 1)] !== team) return out;
+  out.fin = true;
+  out.champion = (STATE.knockoutResults['FINAL'] === team);
+  return out;
+}
+
+// Draws colour-stroked clones of the team's traversed edges into `layer`,
+// plus a coloured ring around each node along the path. Pure overlay — no
+// existing elements are mutated. Each edge is drawn twice: a wider semi-
+// transparent "halo" stroke first, then a sharper inner stroke on top, so the
+// ribbon reads cleanly as a glowing path even when crossing the colourful
+// split-hemisphere nodes underneath. Caller controls overall scale.
+function drawTeamRibbonPaths(team, layer, opts) {
+  opts = opts || {};
+  const sw = opts.strokeWidth || 3;
+  const op = opts.opacity || 0.95;
+  const haloMul = opts.haloMul != null ? opts.haloMul : 2.6;
+  const haloOp  = opts.haloOpacity != null ? opts.haloOpacity : 0.32;
+  const nodeRingR = opts.nodeRingR || 0;
+  const path = computeTeamPath(team);
+  // Clear the layer first
+  while (layer.firstChild) layer.removeChild(layer.firstChild);
+  if (!path) return null;
+  const color = teamCol(team);
+  const edges = [REG.eSlotR32[path.slot]];
+  if (path.r16 !== undefined) edges.push(REG.eR32R16[path.r32]);
+  if (path.qf  !== undefined) edges.push(REG.eR16QF[path.r16]);
+  if (path.sf  !== undefined) edges.push(REG.eQFSF[path.qf]);
+  if (path.fin)               edges.push(REG.eSFFin[path.sf]);
+  // First pass: wider, transparent halo so the path glows around the nodes
+  edges.forEach(edge => {
+    if (!edge) return;
+    const d = edge.getAttribute('d');
+    if (!d) return;
+    mk('path', {
+      d, fill: 'none', stroke: color,
+      'stroke-width': String(sw * haloMul),
+      'stroke-linecap': 'round',
+      opacity: String(haloOp)
+    }, layer);
+  });
+  // Second pass: sharp inner stroke
+  edges.forEach(edge => {
+    if (!edge) return;
+    const d = edge.getAttribute('d');
+    if (!d) return;
+    mk('path', {
+      d, fill: 'none', stroke: color,
+      'stroke-width': String(sw), 'stroke-linecap': 'round',
+      opacity: String(op)
+    }, layer);
+  });
+  // Optional: small coloured rings around each node the team occupied. Caller
+  // passes nodeRingR > 0 to enable. Used by drawChampionRibbon to crown each
+  // node on the champion's path; click-path overlay leaves rings off.
+  if (nodeRingR > 0) {
+    const nodeRefs = [REG.r32Els[path.r32]];
+    if (path.r16 !== undefined) nodeRefs.push(REG.r16Els[path.r16]);
+    if (path.qf  !== undefined) nodeRefs.push(REG.qfEls[path.qf]);
+    if (path.sf  !== undefined) nodeRefs.push(REG.sfEls[path.sf]);
+    if (path.fin)               nodeRefs.push(REG.finEl);
+    nodeRefs.forEach(nodeEl => {
+      if (!nodeEl) return;
+      // Find the node's base circle (the largest circle in the group)
+      const base = nodeEl.querySelector('circle');
+      if (!base) return;
+      const cx = base.getAttribute('cx');
+      const cy = base.getAttribute('cy');
+      const r  = parseFloat(base.getAttribute('r')) || 9.5;
+      // Halo ring (wider, transparent)
+      mk('circle', {
+        cx, cy, r: r + nodeRingR + 1.5,
+        fill: 'none', stroke: color,
+        'stroke-width': String(sw * 1.4),
+        opacity: String(haloOp)
+      }, layer);
+      // Sharp ring
+      mk('circle', {
+        cx, cy, r: r + nodeRingR,
+        fill: 'none', stroke: color,
+        'stroke-width': String(sw * 0.85),
+        opacity: String(op)
+      }, layer);
+    });
+  }
+  return path;
+}
+
+// Lights a single team's path through the bracket: dims everything else,
+// brightens just the slots/edges/nodes the team actually traversed, draws a
+// colour-stroked overlay along the path edges, and bolds the team's name in
+// its group panel. Sticky — replaces any previous highlight until cleared.
+// If the team isn't yet placed in the bracket (group not decided), falls back
+// to highlighting just their group panel so the click still feels responsive.
+function lightTeamPath(team) {
+  if (!team || team === 'TBD') return;
+  _activeTeamPath = team;
+
+  // Clear any selection ring from a prior team click
+  GROUPS.forEach(g => {
+    if (REG.panels[g]) REG.panels[g].querySelectorAll('.team-select-ring').forEach(n => n.remove());
+  });
+
+  const path = computeTeamPath(team);
+  // Find the team's group from the group-stage matches even if they're not
+  // yet placed in the bracket (e.g., real bracket before groups complete).
+  const teamGroup = path ? slots[path.slot]?.group : _teamToGroup[team];
+  if (!teamGroup) {
+    _activeTeamPath = null;
+    return;
+  }
+
+  // Dim everything (manual rather than dimAll(), so we don't recurse).
+  REG.slotEls.forEach(e=>setOp(e,.04));
+  REG.r32Els.forEach(e=>setOp(e,.05));
+  REG.r16Els.forEach(e=>setOp(e,.05));
+  REG.qfEls.forEach(e=>setOp(e,.05));
+  REG.sfEls.forEach(e=>setOp(e,.05));
+  setOp(REG.finEl,.05);
+  REG.eSlotR32.forEach(e=>setOp(e,.03));
+  REG.eR32R16.forEach(e=>setOp(e,.03));
+  REG.eR16QF.forEach(e=>setOp(e,.03));
+  REG.eQFSF.forEach(e=>setOp(e,.03));
+  REG.eSFFin.forEach(e=>setOp(e,.03));
+  GROUPS.forEach(g => {
+    REG.cables[g].forEach(({el})=>setOp(el,0));
+    setOp(REG.panels[g], g === teamGroup ? 1 : .18);
+  });
+
+  // Always highlight the team's group panel and bold their name
+  REG.cables[teamGroup].forEach(({el})=>setOp(el, .4));
+  REG.panels[teamGroup].querySelectorAll('text[data-team]').forEach(el => {
+    const t = el.getAttribute('data-team');
+    if (t === team) {
+      el.setAttribute('opacity', '1');
+      el.setAttribute('fill', teamCol(team));
+      el.setAttribute('font-weight', '800');
+      el.setAttribute('font-size', '12.5');
+    } else {
+      el.setAttribute('opacity', '.42');
+    }
+  });
+
+  if (path) {
+    // Light the team's actual journey through the bracket
+    setOp(REG.slotEls[path.slot], 1);
+    setOp(REG.eSlotR32[path.slot], .9);
+    setOp(REG.r32Els[path.r32], 1);
+    if (path.r16 !== undefined) {
+      setOp(REG.eR32R16[path.r32], .9);
+      setOp(REG.r16Els[path.r16], 1);
+    }
+    if (path.qf !== undefined) {
+      setOp(REG.eR16QF[path.r16], .9);
+      setOp(REG.qfEls[path.qf], 1);
+    }
+    if (path.sf !== undefined) {
+      setOp(REG.eQFSF[path.qf], .9);
+      setOp(REG.sfEls[path.sf], 1);
+    }
+    if (path.fin) {
+      setOp(REG.eSFFin[path.sf], .9);
+      setOp(REG.finEl, 1);
+    }
+    // Draw the colour-stroked overlay on the path edges, with rings around
+    // each node — visually consistent with the champion ribbon but slightly
+    // less prominent (no ring halo, thinner stroke).
+    drawTeamRibbonPaths(team, teamPathLayer, {
+      strokeWidth: 3.2,
+      opacity: 0.95,
+      haloMul: 2.6,
+      haloOpacity: 0.28,
+      nodeRingR: 2.5
+    });
+  } else {
+    // Team not yet placed in bracket. Make the click feel meaningful by
+    // surfacing the team's group's potential R32 landing zones — slots, edges,
+    // R32 match nodes — in their flag colour, brighter than the hover-driven
+    // group highlight so the click clearly dominates.
+    const col = teamCol(team);
+    REG.cables[teamGroup].forEach(({el})=>setOp(el, .92));
+    const r32Hits = new Set();
+    REG.slotEls.forEach((e, i) => {
+      const s = slots[i];
+      if (!s) return;
+      const hits = s.group === teamGroup || (s.possGroups && s.possGroups.includes(teamGroup));
+      if (hits) {
+        setOp(e, .98);
+        setOp(REG.eSlotR32[i], .9);
+        r32Hits.add(s.mi);
+      }
+    });
+    // Light the R32 match nodes whose slots include the team's group
+    r32Hits.forEach(ri => {
+      setOp(REG.r32Els[ri], .85);
+    });
+    // Add a colored ring under the selected team's name in the panel
+    const panel = REG.panels[teamGroup];
+    const NS = 'http://www.w3.org/2000/svg';
+    // Find the team's row index to place the ring at the right Y
+    const teams = STATE.groupStandings[teamGroup]?.teams || [];
+    const rowIdx = teams.indexOf(team);
+    if (rowIdx >= 0) {
+      // Remove any prior selection ring
+      panel.querySelectorAll('.team-select-ring').forEach(n => n.remove());
+      // Panel rect coords from renderGroupTeams: y = py - bh/2 + 31 + i*20
+      const PA = {A:0,B:30,C:60,D:90,E:120,F:150,G:180,H:210,I:240,J:270,K:300,L:330};
+      const angleDeg = PA[teamGroup];
+      const rad = (angleDeg - 90) * Math.PI / 180;
+      const px = 462 * Math.cos(rad);
+      const py = 462 * Math.sin(rad);
+      const ry = py - 118/2 + 31 + rowIdx*20;
+      const ring = document.createElementNS(NS, 'rect');
+      ring.setAttribute('class', 'team-select-ring');
+      ring.setAttribute('x', String(px - 100/2 + 5));
+      ring.setAttribute('y', String(ry - 10));
+      ring.setAttribute('width', String(100 - 10));
+      ring.setAttribute('height', '20');
+      ring.setAttribute('rx', '4');
+      ring.setAttribute('fill', col);
+      ring.setAttribute('fill-opacity', '0.18');
+      ring.setAttribute('stroke', col);
+      ring.setAttribute('stroke-width', '1.5');
+      ring.setAttribute('stroke-opacity', '0.9');
+      ring.setAttribute('pointer-events', 'none');
+      panel.appendChild(ring);
+    }
+    // Make sure the overlay layer is clear (no path to draw)
+    while (teamPathLayer.firstChild) teamPathLayer.removeChild(teamPathLayer.firstChild);
+  }
+
+  // Hide the champion ribbon while a click-path is active (it would
+  // otherwise compete with the clicked team's colour overlay).
+  championLayer.style.display = 'none';
+}
+
+function clearTeamPath() {
+  _activeTeamPath = null;
+  while (teamPathLayer.firstChild) teamPathLayer.removeChild(teamPathLayer.firstChild);
+  // Remove any team-selection ring we drew in the panels
+  GROUPS.forEach(g => {
+    if (REG.panels[g]) REG.panels[g].querySelectorAll('.team-select-ring').forEach(n => n.remove());
+  });
+  championLayer.style.display = '';
+  resetAll();
+}
+
+// Permanent champion ribbon drawn whenever the bracket is in its default
+// state and the FINAL has been decided. Called from resetAll(). Slightly
+// thicker and brighter than the click-path overlay so it reads as the
+// "tournament memory" rather than an interactive highlight.
+function drawChampionRibbon() {
+  while (championLayer.firstChild) championLayer.removeChild(championLayer.firstChild);
+  const champion = STATE.knockoutResults['FINAL'];
+  if (!champion) return;
+  // Thick, glowing ribbon with rings around every node on the champion's path.
+  // This is the "tournament memory" — meant to be the first thing the eye sees
+  // when looking at a completed bracket.
+  drawTeamRibbonPaths(champion, championLayer, {
+    strokeWidth: 4,
+    opacity: 0.92,
+    haloMul: 3.2,
+    haloOpacity: 0.32,
+    nodeRingR: 3.5
+  });
+}
+
 // ── Opacity engine ────────────────────────────────────────────────────────────
 function setOp(el,op){if(el)el.setAttribute('opacity',String(op));}
 function dimAll(){
+  // Don't tear down a sticky click-driven team-path highlight just because
+  // the cursor moved over another node. Click locks the view; only an
+  // explicit clear (tapping the same team again or the empty SVG background)
+  // releases it.
+  if (_activeTeamPath) return;
+  // Clear any team-path overlay so it doesn't bleed through during a fresh
+  // hover/click-driven highlight. Champion ribbon stays in DOM but is hidden
+  // by the dim — resetAll() will restore it.
+  while (teamPathLayer.firstChild) teamPathLayer.removeChild(teamPathLayer.firstChild);
+  championLayer.style.display = 'none';
+  _activeTeamPath = null;
   REG.slotEls.forEach(e=>setOp(e,.04));REG.r32Els.forEach(e=>setOp(e,.05));
   REG.r16Els.forEach(e=>setOp(e,.05));REG.qfEls.forEach(e=>setOp(e,.05));
   REG.sfEls.forEach(e=>setOp(e,.05));setOp(REG.finEl,.05);
@@ -6459,6 +6892,13 @@ function dimAll(){
   GROUPS.forEach(g=>{REG.cables[g].forEach(({el})=>setOp(el,0));setOp(REG.panels[g],.05);});
 }
 function resetAll(){
+  // Sticky click-path lock — preserve the highlight across hover events.
+  // Only released by tapping the same team again or the SVG background.
+  if (_activeTeamPath) return;
+  // Clear any active click-path overlay and restore the persistent champion
+  // ribbon (drawChampionRibbon at the end of this function).
+  while (teamPathLayer.firstChild) teamPathLayer.removeChild(teamPathLayer.firstChild);
+  _activeTeamPath = null;
   REG.slotEls.forEach((e,i)=>setOp(e,slots[i].group?.85:.38));
   REG.r32Els.forEach(e=>setOp(e,1));REG.r16Els.forEach(e=>setOp(e,1));
   REG.qfEls.forEach(e=>setOp(e,1));REG.sfEls.forEach(e=>setOp(e,1));setOp(REG.finEl,1);
@@ -6479,9 +6919,14 @@ function resetAll(){
       el.setAttribute('font-weight', isQ ? '700' : '400');
     });
   });
+  // Re-draw champion ribbon (idempotent — no-op if FINAL undecided)
+  championLayer.style.display = '';
+  drawChampionRibbon();
 }
 
 function lightForward(r32i,slotIdxs,groups){
+  // Sticky click-path lock — don't override a click-driven team highlight.
+  if (_activeTeamPath) return;
   dimAll();
   // Determine how far this team progressed by tracking which slot/team we're highlighting
   // Get the team(s) being highlighted
@@ -6536,12 +6981,19 @@ function lightForward(r32i,slotIdxs,groups){
 }
 
 function lightGroup(g){
+  // Sticky click-path lock — don't override a click-driven team highlight.
+  if (_activeTeamPath) return;
   dimAll();
   // Bracket key → match num lookup, for checking if team won each round
   const BMN = {'M73':73,'M74':74,'M75':75,'M76':76,'M77':77,'M78':78,'M79':79,'M80':80,
                'M81':81,'M82':82,'M83':83,'M84':84,'M85':85,'M86':86,'M87':87,'M88':88,
-               92:92,93:93,94:94,95:95,96:96,97:97,98:98,99:99,
-               100:100,101:101,102:102,103:103,104:104,105:105,108:108};
+               89:89,90:90,91:91,92:92,93:93,94:94,95:95,96:96,
+               97:97,98:98,99:99,100:100,101:101,102:102,103:103,104:104};
+  // Position → match number lookups. R32 was reordered to match FIFA's
+  // cross-bracket layout, and R16 numbers are non-linear across positions,
+  // so we look up instead of computing.
+  const R32_POS_MN = [74,77,73,75,83,84,81,82,76,78,79,80,86,88,85,87];
+  const R16_POS_MN = [89,90,93,94,91,92,95,96];
   function matchWinner(mn) {
     const m = _MATCHES.find(x => x[12]===mn);
     if (!m || m[10]===null || m[11]===null) return null;
@@ -6554,31 +7006,27 @@ function lightGroup(g){
     setOp(REG.eSlotR32[si],.85);
     const team = slots[si].label;
     if (!team || team === 'TBD') return;
-    const ri = slots[si].mi; // R32 index 0-15
+    const ri = slots[si].mi; // R32 spiral position 0-15
     setOp(REG.r32Els[ri],.9);
-    // Check if they won their R32 (match num 73+ri)
-    const r32MatchNum = 73 + ri;
+    const r32MatchNum = R32_POS_MN[ri];
     const r32W = matchWinner(r32MatchNum);
     if (r32W !== team) return; // lost R32, stop
     setOp(REG.eR32R16[ri],.82);
     const r16i = ~~(ri/2);
     setOp(REG.r16Els[r16i],.85);
-    // Check if they won R16 (match num 92+r16i)
-    const r16MatchNum = 92 + r16i;
+    const r16MatchNum = R16_POS_MN[r16i];
     const r16W = matchWinner(r16MatchNum);
     if (r16W !== team) return; // lost R16
     setOp(REG.eR16QF[r16i],.75);
     const qfi = ~~(r16i/2);
     setOp(REG.qfEls[qfi],.82);
-    // Check QF (100+qfi)
-    const qfMatchNum = 100 + qfi;
+    const qfMatchNum = 97 + qfi;
     const qfW = matchWinner(qfMatchNum);
     if (qfW !== team) return; // lost QF
     setOp(REG.eQFSF[qfi],.72);
     const sfi = ~~(qfi/2);
     setOp(REG.sfEls[sfi],.85);
-    // Check SF (104+sfi)
-    const sfMatchNum = 104 + sfi;
+    const sfMatchNum = 101 + sfi;
     const sfW = matchWinner(sfMatchNum);
     if (sfW !== team) return; // lost SF (or not played yet)
     setOp(REG.eSFFin[sfi],.8);
@@ -6652,6 +7100,7 @@ function wireNode(els,data,r32sFn){
     const r32s=r32sFn(i);
     const groups=[...new Set(r32s.flatMap(j=>[slots[j*2]?.group, slots[j*2+1]?.group].filter(Boolean)))];
     el.addEventListener('mouseenter',ev=>{
+      if (_activeTeamPath) { showTip(ev,matchTip(m,groups)); return; }
       dimAll();
       r32s.forEach(ri=>{
         setOp(REG.r32Els[ri],.85);setOp(REG.slotEls[ri*2],.82);setOp(REG.slotEls[ri*2+1],.82);
@@ -6689,6 +7138,7 @@ wireNode(REG.qfEls,QF,i=>[i*4,i*4+1,i*4+2,i*4+3]);
 wireNode(REG.sfEls,SF,i=>Array.from({length:8},(_,k)=>i*8+k));
 
 REG.finEl.addEventListener('mouseenter',ev=>{
+  if (_activeTeamPath) { showTip(ev,matchTip(FIN,GROUPS)); return; }
   dimAll();
   REG.r32Els.forEach(e=>setOp(e,.65));REG.r16Els.forEach(e=>setOp(e,.75));
   REG.qfEls.forEach(e=>setOp(e,.82));REG.sfEls.forEach(e=>setOp(e,.88));setOp(REG.finEl,1);
@@ -6723,32 +7173,99 @@ bracketSvg.addEventListener('click',()=>{
 // drive its own drawer / state. Fires on capture so it runs before the
 // reset-drawer handler above.
 if (_ON_MATCH_CLICK) {
+  // R32 and R16 follow FIFA's cross-bracket layout, so spiral position no
+  // longer equals (match number − base). Map by position index instead.
+  const R32_BY_POS = [74,77,73,75,83,84,81,82,76,78,79,80,86,88,85,87];
+  const R16_BY_POS = [89,90,93,94,91,92,95,96];
   bracketSvg.addEventListener('click', (ev) => {
     let el = ev.target;
     while (el && el !== bracketSvg) {
       // R32
       let idx = REG.r32Els.indexOf(el);
-      if (idx >= 0) { _ON_MATCH_CLICK(73 + idx); return; }
+      if (idx >= 0) { _ON_MATCH_CLICK(R32_BY_POS[idx]); return; }
       // R16
       idx = REG.r16Els.indexOf(el);
-      if (idx >= 0) { _ON_MATCH_CLICK(92 + idx); return; }
+      if (idx >= 0) { _ON_MATCH_CLICK(R16_BY_POS[idx]); return; }
       // QF
       idx = REG.qfEls.indexOf(el);
-      if (idx >= 0) { _ON_MATCH_CLICK(100 + idx); return; }
+      if (idx >= 0) { _ON_MATCH_CLICK(97 + idx); return; }
       // SF
       idx = REG.sfEls.indexOf(el);
-      if (idx >= 0) { _ON_MATCH_CLICK(104 + idx); return; }
+      if (idx >= 0) { _ON_MATCH_CLICK(101 + idx); return; }
       // Final
-      if (el === REG.finEl) { _ON_MATCH_CLICK(108); return; }
+      if (el === REG.finEl) { _ON_MATCH_CLICK(104); return; }
       // Slot — both sides of an R32 match point to that match. Pass slotIdx
       // through so callers (like the simulator) can detect unresolved-slot
       // clicks and redirect to the source group instead.
       idx = REG.slotEls.indexOf(el);
-      if (idx >= 0) { _ON_MATCH_CLICK(73 + (idx >> 1), { slotIdx: idx }); return; }
+      if (idx >= 0) { _ON_MATCH_CLICK(R32_BY_POS[idx >> 1], { slotIdx: idx }); return; }
       el = el.parentNode;
     }
   }, true);
 }
+
+// ── Team-row click handlers (BOTH desktop & mobile) ─────────────────────────
+// Tap a team name in any group panel to trace their actual path through the
+// bracket in their flag colour. Tapping the same team again clears. Tapping
+// a different team switches focus. We delegate at the panel level so clicks
+// anywhere in the panel — even between rows or on padding — get routed to
+// the nearest team. Capture phase so we beat the bracketSvg background-click
+// reset that would otherwise wipe the highlight.
+function handlePanelTap(g, ev) {
+  let team = null;
+  let el = ev.target;
+  while (el && el !== REG.panels[g]) {
+    if (el.getAttribute && el.getAttribute('data-team-hit')) {
+      team = el.getAttribute('data-team-hit');
+      break;
+    }
+    if (el.getAttribute && el.getAttribute('data-team')) {
+      team = el.getAttribute('data-team');
+      break;
+    }
+    el = el.parentNode;
+  }
+  // Fallback: didn't hit a row directly — map click Y to the nearest team row.
+  if (!team) {
+    const panel = REG.panels[g];
+    const rect = panel.getBoundingClientRect();
+    const clickY = ev.clientY != null ? ev.clientY : (ev.touches?.[0]?.clientY);
+    if (clickY != null && rect.height > 0) {
+      const teams = STATE.groupStandings[g]?.teams || [];
+      const rel = (clickY - rect.top) / rect.height;
+      const innerTop = 26 / 128, innerBot = 110 / 128;
+      if (rel >= innerTop && rel <= innerBot) {
+        const rowFloat = ((rel - innerTop) / (innerBot - innerTop)) * 4;
+        const rowIdx = Math.min(3, Math.max(0, Math.floor(rowFloat)));
+        team = teams[rowIdx];
+      }
+    }
+  }
+  if (!team || team === 'TBD') return false;
+  ev.stopPropagation();
+  if (ev.preventDefault) ev.preventDefault();
+  try {
+    if (_activeTeamPath === team) clearTeamPath();
+    else lightTeamPath(team);
+  } catch (err) {
+    console.error('[bracket-click] error in lightTeamPath:', err);
+  }
+  return true;
+}
+GROUPS.forEach(g => {
+  const panelEl = REG.panels[g];
+  if (!panelEl) return;
+  panelEl.addEventListener('click', (ev) => handlePanelTap(g, ev), true);
+  panelEl.addEventListener('touchend', (ev) => {
+    if (handlePanelTap(g, ev)) ev.preventDefault();
+  }, {passive: false, capture: true});
+});
+// Clicking the empty SVG background clears any active team-path highlight.
+svg.addEventListener('click', (ev) => {
+  if (ev.target === svg && _activeTeamPath) clearTeamPath();
+});
+// Expose for devtools poking
+window.__bracketDebug = { handlePanelTap, lightTeamPath, clearTeamPath, getActive: () => _activeTeamPath, REG, slots };
 
 // ── Mobile support ────────────────────────────────────────────────────────────
 if(isMobile){
@@ -6893,6 +7410,11 @@ if(isMobile){
     wireTap(el,()=>{ lightGroup(g); showBottom(groupTip(g)); });
   });
 
+  // Team-row click handlers were here but moved out of the mobile block —
+  // see above, just before `if(isMobile)`.
+} // ── END if(isMobile) ── (moved here from line 7530 — updateKnockoutNodeVisuals
+  // and drawChampionRibbon must run on desktop too, not just mobile)
+
 // updateKnockoutNodeVisuals — colour + label inner bracket nodes from baked results
 function updateKnockoutNodeVisuals() {
   if (typeof REG==='undefined') return;
@@ -6904,7 +7426,7 @@ function updateKnockoutNodeVisuals() {
     const w = _winnerOf('M'+mn);
     if (w) STATE.knockoutResults['M'+mn] = w;
   });
-  const bracketKeys2 = {'R16-1':92,'R16-2':93,'R16-3':94,'R16-4':95,'R16-5':96,'R16-6':97,'R16-7':98,'R16-8':99,'QF-1':100,'QF-2':101,'QF-3':102,'QF-4':103,'SF-1':104,'SF-2':105,'FINAL':108};
+  const bracketKeys2 = {'R16-1':89,'R16-2':90,'R16-3':93,'R16-4':94,'R16-5':91,'R16-6':92,'R16-7':95,'R16-8':96,'QF-1':97,'QF-2':98,'QF-3':99,'QF-4':100,'SF-1':101,'SF-2':102,'FINAL':104};
   Object.entries(bracketKeys2).forEach(([key,mn]) => {
     const w = _winnerOf('M'+mn);
     if (w) STATE.knockoutResults[key] = w;
@@ -6985,7 +7507,7 @@ function updateKnockoutNodeVisuals() {
 
   // R16
   const r16Keys = ['R16-1','R16-2','R16-3','R16-4','R16-5','R16-6','R16-7','R16-8'];
-  const r16Src = [['M73','M74'],['M75','M76'],['M77','M78'],['M79','M80'],['M81','M82'],['M83','M84'],['M85','M86'],['M87','M88']];
+  const r16Src = [['M74','M77'],['M73','M75'],['M83','M84'],['M81','M82'],['M76','M78'],['M79','M80'],['M86','M88'],['M85','M87']];
   REG.r16Els.forEach((el,i) => {
     const winner = STATE.knockoutResults[r16Keys[i]];
     const [cx,cy] = mp('r16',i);
@@ -7032,9 +7554,12 @@ function updateKnockoutNodeVisuals() {
 }
 
 updateKnockoutNodeVisuals();
+// Champion ribbon: draws nothing if FINAL is still undecided. When it is
+// decided (e.g., in the simulator after fill, or in real life), the winner's
+// path glows in their flag colour as the default state of the bracket.
+drawChampionRibbon();
 
 
-}
 }
 
 </script>
@@ -7329,6 +7854,7 @@ updateKnockoutNodeVisuals();
 .sim-3rd-table td.pts { text-align: center; color: #fff; font-weight: 700; }
 .sim-3rd-table tbody tr:last-child td { border-bottom: none; }
 .sim-3rd-table tbody tr.q td { background: rgba(45, 106, 79, .09); }
+.sim-3rd-table tbody tr.prov td { background: rgba(180, 160, 40, .08); }
 .sim-3rd-table tbody tr.cutoff-row td {
   border-top: 2px dashed #2a3860;
   position: relative;
@@ -7342,6 +7868,7 @@ updateKnockoutNodeVisuals();
   font-size: 11px;
 }
 .sim-3rd-rank.q { color: #6abf6a; }
+.sim-3rd-rank.prov { color: #d4ba4a; }
 .sim-3rd-grp {
   display: inline-flex; align-items: center;
   gap: 6px;
@@ -7376,6 +7903,7 @@ updateKnockoutNodeVisuals();
   font-weight: 500;
 }
 .sim-3rd-table tbody tr.q .sim-3rd-team-cell .nm { color: #fff; font-weight: 600; }
+.sim-3rd-table tbody tr.prov .sim-3rd-team-cell .nm { color: #e2cf7a; font-weight: 600; }
 .sim-3rd-cutoff-label {
   font-size: 9px; font-weight: 700;
   color: #6878a8; text-transform: uppercase;
@@ -7952,6 +8480,15 @@ updateKnockoutNodeVisuals();
   function invalidateBest3rd() { _best3rdCache = null; }
 
   // ── Team resolution for KO labels ──────────────────────────────────────
+  // R16-N / QF-N / SF-N → MATCHES match number. R16 is non-uniform because
+  // the bracket follows FIFA's cross-layout, so we use lookups rather than
+  // arithmetic.
+  const BR_MN = {
+    'R16-1': 89, 'R16-2': 90, 'R16-3': 93, 'R16-4': 94,
+    'R16-5': 91, 'R16-6': 92, 'R16-7': 95, 'R16-8': 96,
+    'QF-1': 97,  'QF-2': 98,  'QF-3': 99,  'QF-4': 100,
+    'SF-1': 101, 'SF-2': 102
+  };
   function resolveTeam(label, forMatchNum) {
     if (!label) return null;
     // Already a real team name (registered in any group)
@@ -7975,18 +8512,18 @@ updateKnockoutNodeVisuals();
     // "W(M##)"
     m = label.match(/^W\(M(\d+)\)$/);
     if (m) return simWinner(parseInt(m[1], 10));
-    // "W(R16-#)"
-    m = label.match(/^W\(R16-(\d+)\)$/);
-    if (m) return simWinner(91 + parseInt(m[1], 10));
-    // "W(QF-#)"
-    m = label.match(/^W\(QF-(\d+)\)$/);
-    if (m) return simWinner(99 + parseInt(m[1], 10));
-    // "W(SF-#)"
-    m = label.match(/^W\(SF-(\d+)\)$/);
-    if (m) return simWinner(103 + parseInt(m[1], 10));
+    // "W(R16-#)" / "W(QF-#)" / "W(SF-#)"
+    m = label.match(/^W\((R16-\d+|QF-\d+|SF-\d+)\)$/);
+    if (m) {
+      const mn = BR_MN[m[1]];
+      return mn ? simWinner(mn) : null;
+    }
     // "Loser SF-#"
-    m = label.match(/^Loser SF-(\d+)$/);
-    if (m) return simLoser(103 + parseInt(m[1], 10));
+    m = label.match(/^Loser (SF-\d+)$/);
+    if (m) {
+      const mn = BR_MN[m[1]];
+      return mn ? simLoser(mn) : null;
+    }
     return null;
   }
 
@@ -8149,7 +8686,7 @@ updateKnockoutNodeVisuals();
 
     // Show champion block if final is done
     let championHtml = '';
-    const finalMatchNum = 108;
+    const finalMatchNum = 104;
     const finalResult = SIM.results[finalMatchNum];
     if (isComplete(finalMatchNum)) {
       const winner = simWinner(finalMatchNum);
@@ -8436,8 +8973,8 @@ updateKnockoutNodeVisuals();
     });
     // Now resolve KO placeholders into real team names
     const koNums = [73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,
-                    92,93,94,95,96,97,98,99,
-                    100,101,102,103,104,105,107,108];
+                    89,90,91,92,93,94,95,96,
+                    97,98,99,100,101,102,103,104];
     koNums.forEach(num => {
       const idx = out.findIndex(m => m[12] === num);
       if (idx < 0) return;
@@ -8499,9 +9036,8 @@ updateKnockoutNodeVisuals();
           // a group match they can actually pick. Once the group fills in, the
           // bracket auto-resolves and clicks here go to the R32 match instead.
           if (opts && opts.slotIdx != null && typeof KO_TEAM_TEMPLATES !== 'undefined') {
-            const r32MatchNum = 73 + (opts.slotIdx >> 1);
             const sideIdx = opts.slotIdx & 1; // 0 = home, 1 = away
-            const labels = KO_TEAM_TEMPLATES[r32MatchNum];
+            const labels = KO_TEAM_TEMPLATES[matchNum];
             const label = labels ? labels[sideIdx] : null;
             if (label) {
               const m = label.match(/^(?:1st|2nd|3rd)\s+([A-L])$/);
@@ -8557,20 +9093,26 @@ updateKnockoutNodeVisuals();
       const sz = { r32:2, r16:4, qf:8, sf:16 }[round];
       return (sa(i*sz) + sa(i*sz + sz - 1)) / 2;
     }
+    // R32 and R16 are no longer in linear match-number order (the bracket
+    // follows FIFA's cross-layout so 1X/2X can only meet in the Final), so
+    // we look up spiral position from match number instead of subtracting.
+    const R32_POS = {74:0, 77:1, 73:2, 75:3, 83:4, 84:5, 81:6, 82:7,
+                     76:8, 78:9, 79:10, 80:11, 86:12, 88:13, 85:14, 87:15};
+    const R16_POS = {89:0, 90:1, 93:2, 94:3, 91:4, 92:5, 95:6, 96:7};
     let cx = null, cy = null, ringR = 14;
     if (currNum >= 73 && currNum <= 88) {
-      [cx, cy] = polar(ma('r32', currNum - 73), R_R32);
+      [cx, cy] = polar(ma('r32', R32_POS[currNum]), R_R32);
       ringR = 13;
-    } else if (currNum >= 92 && currNum <= 99) {
-      [cx, cy] = polar(ma('r16', currNum - 92), R_R16);
+    } else if (currNum >= 89 && currNum <= 96) {
+      [cx, cy] = polar(ma('r16', R16_POS[currNum]), R_R16);
       ringR = 13;
-    } else if (currNum >= 100 && currNum <= 103) {
-      [cx, cy] = polar(ma('qf', currNum - 100), R_QF);
+    } else if (currNum >= 97 && currNum <= 100) {
+      [cx, cy] = polar(ma('qf', currNum - 97), R_QF);
       ringR = 13;
-    } else if (currNum >= 104 && currNum <= 105) {
-      [cx, cy] = polar(ma('sf', currNum - 104), R_SF);
+    } else if (currNum >= 101 && currNum <= 102) {
+      [cx, cy] = polar(ma('sf', currNum - 101), R_SF);
       ringR = 13;
-    } else if (currNum === 108) {
+    } else if (currNum === 104) {
       cx = 0; cy = 0; ringR = 28;
     }
     if (cx == null) return; // group matches & 3rd-place not on the chart
@@ -8605,14 +9147,27 @@ updateKnockoutNodeVisuals();
       return b.gf - a.gf;
     }).slice(0, 8).map(t => t.team);
 
-    // Qualification status — only marks teams definitively in/out when a group is fully played.
-    // (Mid-group inference like the live Tables page is intentionally skipped: cleaner here.)
+    // Are ALL 12 groups complete? Required before any 3rd-placer can show
+    // as confirmed-qualified (their ranking is a global, cross-group calc).
+    const allGroupsComplete = 'ABCDEFGHIJKL'.split('').every(g => groupComplete(g));
+
+    // Qualification status — only marks teams definitively in/out when a group
+    // is fully played. 3rd-place teams need ALL 12 groups complete before they
+    // can be marked qualified (since they're ranked globally across groups).
+    // While other groups are still in progress, a 3rd-placer currently sitting
+    // in the top-8 best-3rd ranking shows as 'provisional3' (yellow-amber).
     function simQualStatus(grp, idx, sortedTeams) {
       const s = sortedTeams[idx];
       if (!s) return null;
       if (!groupComplete(grp)) return null;
       if (idx < 2) return 'qualified';
-      if (idx === 2 && best8thirds.includes(s.team)) return 'qualified3';
+      if (idx === 2) {
+        if (!allGroupsComplete) {
+          // Group done, global picture not — tentative state
+          return best8thirds.includes(s.team) ? 'provisional3' : null;
+        }
+        return best8thirds.includes(s.team) ? 'qualified3' : 'eliminated';
+      }
       return 'eliminated';
     }
 
@@ -8629,6 +9184,9 @@ updateKnockoutNodeVisuals();
         if (status === 'qualified' || status === 'qualified3') {
           qualCls = isSoc ? 'gtc-pos soc' : 'gtc-pos q';
           rowCls = 'gtc-row-q';
+        } else if (status === 'provisional3') {
+          qualCls = isSoc ? 'gtc-pos soc' : 'gtc-pos prov';
+          rowCls = 'gtc-row-prov';
         } else if (status === 'eliminated') {
           qualCls = isSoc ? 'gtc-pos soc' : 'gtc-pos elim';
           rowCls = isSoc ? '' : 'gtc-row-elim';
@@ -8706,6 +9264,11 @@ updateKnockoutNodeVisuals();
       return b.gf - a.gf;
     });
 
+    // Confirmed-qualified styling only kicks in once every group is finished
+    // (3rd-place ranking is global). Until then, top-8 thirds show as
+    // provisional (yellow-amber).
+    const _allGrpDone = 'ABCDEFGHIJKL'.split('').every(g => groupComplete(g));
+
     const filter = SIM.thirdFilter || 'all';
     const shownRanked = (filter === 'qualifying') ? ranked.slice(0, 8) : ranked;
 
@@ -8727,8 +9290,8 @@ updateKnockoutNodeVisuals();
           <i class="ph ph-scissors" style="font-size:11px;margin-right:4px"></i>Cut-off — below this line does NOT qualify
         </td></tr>`;
       }
-      rowsHtml += `<tr class="${qualifies ? 'q' : ''}">
-        <td><span class="sim-3rd-rank ${qualifies ? 'q' : ''}">${rank}</span></td>
+      rowsHtml += `<tr class="${qualifies ? (_allGrpDone ? 'q' : 'prov') : ''}">
+        <td><span class="sim-3rd-rank ${qualifies ? (_allGrpDone ? 'q' : 'prov') : ''}">${rank}</span></td>
         <td>
           <span class="sim-3rd-grp">
             <span class="sim-3rd-grp-dot" style="background:${color};box-shadow:0 0 0 2px ${color}22"></span>
@@ -8829,11 +9392,11 @@ updateKnockoutNodeVisuals();
     return [
       ...groupStages,
       [73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88], // R32
-      [92,93,94,95,96,97,98,99],                          // R16
-      [100,101,102,103],                                  // QF
-      [104,105],                                          // SF
-      [107],                                              // 3rd
-      [108]                                               // Final
+      [89,90,91,92,93,94,95,96],                          // R16
+      [97,98,99,100],                                     // QF
+      [101,102],                                          // SF
+      [103],                                              // 3rd
+      [104]                                               // Final
     ];
   }
   // Pause state between group stage and knockout stage during random fill.
