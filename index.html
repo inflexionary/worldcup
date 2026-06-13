@@ -53,7 +53,7 @@ html{scroll-behavior:smooth}
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 
 /* ═══════════════════════════════
-   SHARED TOP BAR 
+   SHARED TOP BAR
 ═══════════════════════════════ */
 .top-bar{
   background:var(--surface);
@@ -2570,7 +2570,7 @@ const MATCHES = [
   [2026,5,25,11,0,"Czechia","Mexico","A","Mexico City",false,null,null,5],
   [2026,5,25,11,0,"South Africa","South Korea","A","Monterrey",false,null,null,6],
   // ── Group B ──
-  [2026,5,13,5,0,"Canada","Bosnia & Herz.","B","Toronto",false,null,null,7],
+  [2026,5,13,5,0,"Canada","Bosnia & Herz.","B","Toronto",false,1,1,7],
   [2026,5,14,5,0,"Qatar","Switzerland","B","San Francisco",false,null,null,8],
   [2026,5,19,5,0,"Switzerland","Bosnia & Herz.","B","Los Angeles",false,null,null,9],
   [2026,5,19,8,0,"Canada","Qatar","B","Vancouver",false,null,null,10],
@@ -2584,7 +2584,7 @@ const MATCHES = [
   [2026,5,25,8,0,"Scotland","Brazil","C","Miami",false,null,null,17],
   [2026,5,25,8,0,"Morocco","Haiti","C","Atlanta",false,null,null,18],
   // ── Group D ──
-  [2026,5,13,11,0,"USA","Paraguay","D","Los Angeles",false,null,null,19],
+  [2026,5,13,11,0,"USA","Paraguay","D","Los Angeles",false,4,1,19],
   [2026,5,14,14,0,"Australia","Türkiye","D","Vancouver",true,null,null,20],
   [2026,5,20,5,0,"USA","Australia","D","Seattle",true,null,null,21],
   [2026,5,20,14,0,"Türkiye","Paraguay","D","San Francisco",false,null,null,22],
@@ -4585,10 +4585,12 @@ const MATCH_REPORTS = {
       {team: 'Mexico', player: 'Raúl Jiménez', minute: 67, assist: 'Roberto Alvarado', is_own_goal: false}
     ],
     cards: [
+      {team: 'South Africa', player: 'Teboho Mokoena', minute: 17, type: 'yellow'},
       {team: 'Mexico', player: 'Bryan Gutiérrez', minute: 23, type: 'yellow'},
-      {team: 'South Africa', player: 'Yaya Sithole', minute: 55, type: 'red'},
-      {team: 'South Africa', player: 'Themba Zwane', minute: 80, type: 'red'},
-      {team: 'Mexico', player: 'César Montes', minute: 90, type: 'red'}
+      {team: 'South Africa', player: 'Sphephelo Sithole', minute: 50, type: 'red'},
+      {team: 'South Africa', player: 'Nkosinathi Sibisi', minute: 74, type: 'yellow'},
+      {team: 'South Africa', player: 'Themba Zwane', minute: 84, type: 'red'},
+      {team: 'Mexico', player: 'César Montes', minute: '90+2', type: 'red'}
     ]
   },
   2: {
@@ -4598,7 +4600,35 @@ const MATCH_REPORTS = {
       {team: 'South Korea', player: 'Oh Hyeon-gyu', minute: 80, assist: 'Hwang In-beom', is_own_goal: false}
     ],
     cards: [
-      {team: 'South Korea', player: 'Lee Gi-hyuk', minute: 90, type: 'yellow'}
+      {team: 'South Korea', player: 'Lee Gi-hyuk', minute: '90+6', type: 'yellow'}
+    ]
+  },
+  7: {
+    goals: [
+      {team: 'Bosnia & Herz.', player: 'Jovo Lukić', minute: 21, assist: 'Sead Kolašinac', is_own_goal: false},
+      {team: 'Canada', player: 'Cyle Larin', minute: 78, assist: null, is_own_goal: false}
+    ],
+    cards: [
+      {team: 'Canada', player: 'Alistair Johnston', minute: 11, type: 'yellow'},
+      {team: 'Bosnia & Herz.', player: 'Ermedin Demirović', minute: 45, type: 'yellow'},
+      {team: 'Bosnia & Herz.', player: 'Jovo Lukić', minute: '45+1', type: 'yellow'},
+      {team: 'Canada', player: 'Luc de Fougerolles', minute: 54, type: 'yellow'},
+      {team: 'Bosnia & Herz.', player: 'Nikola Katić', minute: '90+3', type: 'yellow'}
+    ]
+  },
+  19: {
+    goals: [
+      {team: 'USA', player: 'Damián Bobadilla', minute: 7, assist: 'Weston McKennie', is_own_goal: true},
+      {team: 'USA', player: 'Folarin Balogun', minute: 31, assist: 'Christian Pulisic', is_own_goal: false},
+      {team: 'USA', player: 'Folarin Balogun', minute: '45+5', assist: 'Malik Tillman', is_own_goal: false},
+      {team: 'Paraguay', player: 'Maurício', minute: 73, assist: 'Julio Enciso', is_own_goal: false},
+      {team: 'USA', player: 'Giovanni Reyna', minute: '90+8', assist: null, is_own_goal: false}
+    ],
+    cards: [
+      {team: 'Paraguay', player: 'Miguel Almirón', minute: 53, type: 'yellow'},
+      {team: 'USA', player: 'Tyler Adams', minute: 59, type: 'yellow'},
+      {team: 'Paraguay', player: 'Diégo Gómez', minute: 68, type: 'yellow'},
+      {team: 'Paraguay', player: 'Junior Alonso', minute: '90+2', type: 'yellow'}
     ]
   }
 };
@@ -4641,10 +4671,20 @@ function renderMatchReport(matchIdx, report) {
   const pens = report.penalties || [];
 
   // Merge goals + cards into timeline
+  // Parse minute for sorting — handles "45+5" style stoppage time strings
+  function parseMin(m) {
+    if (typeof m === 'number') return m;
+    if (typeof m === 'string' && m.includes('+')) {
+      const parts = m.split('+');
+      return parseInt(parts[0]) + parseInt(parts[1]) * 0.01;
+    }
+    return parseInt(m) || 0;
+  }
+
   const events = [
     ...goals.map(g => ({ ...g, _type: 'goal', minute: g.minute })),
     ...cards.map(c => ({ ...c, _type: 'card', minute: c.minute })),
-  ].sort((a, b) => a.minute - b.minute);
+  ].sort((a, b) => parseMin(a.minute) - parseMin(b.minute));
 
   const homeColor = (typeof GROUP_COLORS !== 'undefined' && GROUP_COLORS[m[7]]) || '#4a6090';
 
@@ -5980,23 +6020,24 @@ mk('circle',{cx:0,cy:0,r:R_SLOT+7,fill:'none',stroke:'#181f3a','stroke-width':'.
 // Dashed round rings on top of bands
 [R_R32,R_R16,R_QF,R_SF].forEach(r=>mk('circle',{cx:0,cy:0,r,fill:'none',stroke:'#1e2845','stroke-width':'.6','stroke-dasharray':'2 6'},svg));
 
-// ── Bracket edges using bundled beziers ───────────────────────────────────────
-// slot → r32 (each slot goes to its match node — they share the same parent
-// so their paths will naturally converge near the R32 node)
+// ── Bracket edges — straight radial lines between knockout nodes ─────────────
+// slot → r32
 for(let i=0;i<32;i++){
-  const slotA=sa(i);
-  const r32A=ma('r32',~~(i/2));
+  const[x1,y1]=polar(sa(i),R_SLOT);
+  const[x2,y2]=mp('r32',~~(i/2));
   const el=mk('path',{
-    d:bundledEdge(slotA,R_SLOT,r32A,R_R32),
+    d:`M${x1} ${y1} L${x2} ${y2}`,
     fill:'none',stroke:'#2a3860','stroke-width':'1.2',opacity:'.9'
   },svg);
   REG.eSlotR32.push(el);
 }
 
-// r32 → r16 (pairs of R32 nodes share same R16 parent → their paths bundle near R16)
+// r32 → r16
 for(let i=0;i<16;i++){
+  const[x1,y1]=mp('r32',i);
+  const[x2,y2]=mp('r16',~~(i/2));
   const el=mk('path',{
-    d:bundledEdge(ma('r32',i),R_R32,ma('r16',~~(i/2)),R_R16),
+    d:`M${x1} ${y1} L${x2} ${y2}`,
     fill:'none',stroke:'#304070','stroke-width':'1.4',opacity:'.9'
   },svg);
   REG.eR32R16.push(el);
@@ -6004,8 +6045,10 @@ for(let i=0;i<16;i++){
 
 // r16 → qf
 for(let i=0;i<8;i++){
+  const[x1,y1]=mp('r16',i);
+  const[x2,y2]=mp('qf',~~(i/2));
   const el=mk('path',{
-    d:bundledEdge(ma('r16',i),R_R16,ma('qf',~~(i/2)),R_QF),
+    d:`M${x1} ${y1} L${x2} ${y2}`,
     fill:'none',stroke:'#384878','stroke-width':'1.6',opacity:'.9'
   },svg);
   REG.eR16QF.push(el);
@@ -6013,18 +6056,20 @@ for(let i=0;i<8;i++){
 
 // qf → sf
 for(let i=0;i<4;i++){
+  const[x1,y1]=mp('qf',i);
+  const[x2,y2]=mp('sf',~~(i/2));
   const el=mk('path',{
-    d:bundledEdge(ma('qf',i),R_QF,ma('sf',~~(i/2)),R_SF),
+    d:`M${x1} ${y1} L${x2} ${y2}`,
     fill:'none',stroke:'#405280','stroke-width':'1.8',opacity:'.9'
   },svg);
   REG.eQFSF.push(el);
 }
 
-// sf → final (straight radial — only 2 nodes, no siblings to bundle with)
+// sf → final
 for(let i=0;i<2;i++){
   const[x1,y1]=mp('sf',i);
   const el=mk('path',{
-    d:`M${x1} ${y1} Q${x1*.3} ${y1*.3} 0 0`,
+    d:`M${x1} ${y1} L0 0`,
     fill:'none',stroke:'#485a8a','stroke-width':'2',opacity:'.9'
   },svg);
   REG.eSFFin.push(el);
@@ -6093,8 +6138,13 @@ slots.forEach((s,i)=>{
 R32.forEach((m,i)=>{
   const[cx,cy]=mp('r32',i);
   const g=mk('g',{cursor:'pointer'},svg);
-  const hColor = slots[i*2]?.group ? GC[slots[i*2].group] : (m.hg ? GC[m.hg] : '#4a5070');
-  const aColor = slots[i*2+1]?.group ? GC[slots[i*2+1].group] : (m.ag ? GC[m.ag] : '#5a6080');
+  const hLabel = slots[i*2]?.label;
+  const aLabel = slots[i*2+1]?.label;
+  // Use team flag colour if team is resolved (known country), otherwise group colour
+  const hColor = (hLabel && TEAM_COLORS[hLabel]) ? TEAM_COLORS[hLabel]
+    : slots[i*2]?.group ? GC[slots[i*2].group] : (m.hg ? GC[m.hg] : '#4a5070');
+  const aColor = (aLabel && TEAM_COLORS[aLabel]) ? TEAM_COLORS[aLabel]
+    : slots[i*2+1]?.group ? GC[slots[i*2+1].group] : (m.ag ? GC[m.ag] : '#5a6080');
   const ang=ma('r32',i);
   const radDir=(ang-90)*Math.PI/180;
   const R=9.5;
@@ -6140,7 +6190,8 @@ GROUPS.forEach((g,gi)=>{
 // Build team→group colour from STATE (populated by syncBracketState before initBracketDraw)
 const _teamCol = (team) => {
   if (!team || team==='TBD') return null;
-  // Read directly from MATCHES — avoids inner STATE shadowing issue
+  // If team is a known country, use their flag colour; fall back to group colour
+  if (TEAM_COLORS[team]) return TEAM_COLORS[team];
   const gm = _MATCHES.find(m => 'ABCDEFGHIJKL'.includes(m[7]) && (m[5]===team||m[6]===team));
   return gm ? GC[gm[7]] : null;
 };
@@ -6201,8 +6252,8 @@ function drawSplitNode(round, matchIdx, homeKey, awayKey, r, reg) {
 
 // R16 nodes — each fed by two R32 match winners
 const r16Sources = [
-  ['M73','M74'],['M75','M76'],['M77','M78'],['M79','M80'],
-  ['M81','M82'],['M83','M84'],['M85','M86'],['M87','M88'],
+  ['M74','M77'],['M73','M75'],['M83','M84'],['M81','M82'],
+  ['M76','M78'],['M79','M80'],['M86','M88'],['M85','M87'],
 ];
 R16.forEach((_,i) => drawSplitNode('r16', i, r16Sources[i][0], r16Sources[i][1], 9.5, REG.r16Els));
 
@@ -6627,7 +6678,10 @@ function drawTeamRibbonPaths(team, layer, opts) {
   while (layer.firstChild) layer.removeChild(layer.firstChild);
   if (!path) return null;
   const color = teamCol(team);
-  const edges = [REG.eSlotR32[path.slot]];
+  const edges = [];
+  // Optional cable from group panel to slot (extends trace to team's label)
+  if (opts.extraEdge) edges.push(opts.extraEdge);
+  edges.push(REG.eSlotR32[path.slot]);
   if (path.r16 !== undefined) edges.push(REG.eR32R16[path.r32]);
   if (path.qf  !== undefined) edges.push(REG.eR16QF[path.r16]);
   if (path.sf  !== undefined) edges.push(REG.eQFSF[path.qf]);
@@ -6770,12 +6824,16 @@ function lightTeamPath(team) {
     // Draw the colour-stroked overlay on the path edges, with rings around
     // each node — visually consistent with the champion ribbon but slightly
     // less prominent (no ring halo, thinner stroke).
+    // Include the cable from the group panel to the team's slot so the trace
+    // runs all the way back to the team's name in the panel.
+    const teamCable = REG.cables[teamGroup]?.find(c => c.si === path.slot);
     drawTeamRibbonPaths(team, teamPathLayer, {
       strokeWidth: 3.2,
       opacity: 0.95,
       haloMul: 2.6,
       haloOpacity: 0.28,
-      nodeRingR: 2.5
+      nodeRingR: 2.5,
+      extraEdge: teamCable?.el || null
     });
   } else {
     // Team not yet placed in bracket. Make the click feel meaningful by
@@ -6861,12 +6919,16 @@ function drawChampionRibbon() {
   // Thick, glowing ribbon with rings around every node on the champion's path.
   // This is the "tournament memory" — meant to be the first thing the eye sees
   // when looking at a completed bracket.
+  const champPath = computeTeamPath(champion);
+  const champGroup = champPath ? slots[champPath.slot]?.group : null;
+  const champCable = champGroup ? REG.cables[champGroup]?.find(c => c.si === champPath.slot) : null;
   drawTeamRibbonPaths(champion, championLayer, {
     strokeWidth: 4,
     opacity: 0.92,
     haloMul: 3.2,
     haloOpacity: 0.32,
-    nodeRingR: 3.5
+    nodeRingR: 3.5,
+    extraEdge: champCable?.el || null
   });
 }
 
@@ -7504,6 +7566,31 @@ function updateKnockoutNodeVisuals() {
       el.appendChild(hit);
     }
   }
+
+  // R32
+  const R32_MATCH_NUMS = [74,77,73,75,83,84,81,82,76,78,79,80,86,88,85,87];
+  REG.r32Els.forEach((el,i) => {
+    const mn = R32_MATCH_NUMS[i];
+    const winner = STATE.knockoutResults['M'+mn];
+    const [cx,cy] = mp('r32',i);
+    if (winner) {
+      labelNode(el, cx, cy, winner, 9.5);
+    } else {
+      // Show match ID as fallback when no winner yet
+      const old = el.querySelector('.ko-winner-label');
+      if (old) old.remove();
+      const lbl = document.createElementNS(NS, 'text');
+      lbl.setAttribute('class','ko-winner-label');
+      lbl.setAttribute('x', cx); lbl.setAttribute('y', cy + 9.5 + 11);
+      lbl.setAttribute('text-anchor','middle'); lbl.setAttribute('dominant-baseline','middle');
+      lbl.setAttribute('font-size','7.5'); lbl.setAttribute('font-weight','700');
+      lbl.setAttribute('fill', '#4a5a80'); lbl.setAttribute('opacity','0.7');
+      lbl.setAttribute('font-family','Inter,sans-serif'); lbl.setAttribute('letter-spacing','.04em');
+      lbl.setAttribute('pointer-events','none');
+      lbl.textContent = 'M'+mn;
+      el.appendChild(lbl);
+    }
+  });
 
   // R16
   const r16Keys = ['R16-1','R16-2','R16-3','R16-4','R16-5','R16-6','R16-7','R16-8'];
