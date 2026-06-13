@@ -143,6 +143,23 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-s
 
 /* Socceroos cards */
 .soc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+
+/* Mobile knockout notice */
+.mobile-ko-notice{
+  display:none;
+  max-width:960px;margin:0 auto;padding:16px 20px;
+}
+@media(max-width:900px){
+  .mobile-ko-notice{
+    display:flex;align-items:flex-start;gap:12px;
+    background:var(--charcoal);border:1px solid rgba(232,84,26,.25);border-radius:8px;
+    margin:20px auto;padding:16px 20px;max-width:920px;
+    color:rgba(247,247,242,.7);font-size:13px;line-height:1.5;
+  }
+  .mobile-ko-notice i{font-size:24px;color:var(--accent);flex-shrink:0;margin-top:2px}
+  .mobile-ko-notice strong{display:block;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
+  .mobile-ko-notice p{margin:0;font-size:12px;color:rgba(247,247,242,.55)}
+}
 .soc-card{background:var(--charcoal);border-radius:8px;padding:22px 20px;position:relative;overflow:hidden;border:1px solid rgba(232,84,26,.2);transition:transform .15s}
 .soc-card:hover{transform:translateY(-2px)}
 .soc-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--accent)}
@@ -2133,6 +2150,15 @@ footer .footer-credit { color: #5060a0; }
 
   <!-- Dynamic dashboard — replaces static hero -->
   <div id="ovDashboard"></div>
+
+  <!-- Mobile notice: knockout bracket not available -->
+  <div class="mobile-ko-notice">
+    <i class="ph ph-monitor"></i>
+    <div>
+      <strong>Knockout Bracket</strong>
+      <p>The interactive knockout visualization is best experienced on a desktop or tablet. Rotate your device or switch to a larger screen to explore the full bracket.</p>
+    </div>
+  </div>
 
 
   <section class="ov-section ani">
