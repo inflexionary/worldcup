@@ -2662,16 +2662,16 @@ const MATCHES = [
   [2026,5,18,3,0,"Portugal","DR Congo","K","Houston",false,null,null,61],
   [2026,5,18,12,0,"Uzbekistan","Colombia","K","Mexico City",false,null,null,62],
   [2026,5,24,3,0,"Portugal","Uzbekistan","K","Houston",false,null,null,63],
-  [2026,5,24,9,0,"Colombia","DR Congo","K","Mexico City",false,null,null,64],
-  [2026,5,28,8,0,"DR Congo","Uzbekistan","K","Houston",false,null,null,65],
-  [2026,5,28,8,0,"Colombia","Portugal","K","Kansas City",false,null,null,66],
+  [2026,5,24,12,0,"Colombia","DR Congo","K","Guadalajara",false,null,null,64],
+  [2026,5,28,9,30,"DR Congo","Uzbekistan","K","Atlanta",false,null,null,65],
+  [2026,5,28,9,30,"Colombia","Portugal","K","Miami",false,null,null,66],
   // ── Group L ──
-  [2026,5,17,20,0,"England","Croatia","L","Dallas",false,null,null,67],
-  [2026,5,17,23,0,"Ghana","Panama","L","Toronto",false,null,null,68],
-  [2026,5,23,20,0,"England","Ghana","L","Boston",false,null,null,69],
-  [2026,5,23,23,0,"Panama","Croatia","L","Toronto",false,null,null,70],
-  [2026,5,27,21,0,"Panama","England","L","New York",false,null,null,71],
-  [2026,5,27,21,0,"Croatia","Ghana","L","Philadelphia",false,null,null,72],
+  [2026,5,18,6,0,"England","Croatia","L","Dallas",false,null,null,67],
+  [2026,5,18,9,0,"Ghana","Panama","L","Toronto",false,null,null,68],
+  [2026,5,24,6,0,"England","Ghana","L","Boston",false,null,null,69],
+  [2026,5,24,9,0,"Panama","Croatia","L","Toronto",false,null,null,70],
+  [2026,5,28,7,0,"Panama","England","L","New York",false,null,null,71],
+  [2026,5,28,7,0,"Croatia","Ghana","L","Philadelphia",false,null,null,72],
   // ── Knockout rounds (TBD) ──
   [2026,5,29,5,0,"2nd A","2nd B","R32","Los Angeles",false,null,null,73,null],
   [2026,5,30,6,30,"1st E","Best 3rd","R32","Boston",false,null,null,74,null],
@@ -9766,6 +9766,693 @@ drawChampionRibbon();
   window.initSimulator = init;
 })();
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     TheSportsDB live-data integration
+     - Bottom-right "Live" badge: status + click to refresh
+     - Auto-syncs scores every 2 minutes (manual MATCH_REPORTS entries win)
+     - Auto-loads goals/cards from API for finished matches without manual data
+     ═══════════════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+  'use strict';
+
+  // ─── Config ──────────────────────────────────────────────────────────────
+  const TSDB_KEY    = '5747359596';
+  const TSDB_V1     = `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}`;
+  const WC_LEAGUE   = 4429;       // FIFA World Cup
+  const WC_SEASON   = '2026';
+  const POLL_MS     = 120000;     // 2 min
+  const SEASON_TTL  = 5 * 60 * 1000;
+
+  // Your-team-name → TheSportsDB team name (only entries where they differ)
+  const NAME_TO_TSDB = {
+    'Türkiye':         'Turkey',
+    'Bosnia & Herz.':  'Bosnia-Herzegovina',
+    'Czechia':         'Czech Republic',
+    'DR Congo':        'Congo DR',
+  };
+  const TSDB_TO_NAME = Object.fromEntries(
+    Object.entries(NAME_TO_TSDB).map(([k,v]) => [v, k])
+  );
+  const nameToTsdb   = n => NAME_TO_TSDB[n] || n;
+  const nameFromTsdb = n => TSDB_TO_NAME[n] || n;
+  const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // ─── State ───────────────────────────────────────────────────────────────
+  let seasonEvents = [];
+  let lastSeasonFetch = 0;
+  const eventByMatchNum = {};
+
+  // ─── Season fetch (bulk score sync) ──────────────────────────────────────
+  async function loadSeason(force) {
+    if (!force && seasonEvents.length && (Date.now() - lastSeasonFetch < SEASON_TTL)) {
+      return seasonEvents;
+    }
+    try {
+      const cached = JSON.parse(localStorage.getItem('tsdb_season') || 'null');
+      if (!force && cached && (Date.now() - cached.ts < SEASON_TTL)) {
+        seasonEvents = cached.events;
+        lastSeasonFetch = cached.ts;
+        return seasonEvents;
+      }
+    } catch(e) {}
+
+    const r = await fetch(`${TSDB_V1}/eventsseason.php?id=${WC_LEAGUE}&s=${WC_SEASON}`);
+    const data = await r.json();
+    seasonEvents = data.events || [];
+    lastSeasonFetch = Date.now();
+    try {
+      localStorage.setItem('tsdb_season', JSON.stringify({ts: lastSeasonFetch, events: seasonEvents}));
+    } catch(e) {}
+    return seasonEvents;
+  }
+
+  function findEvent(m) {
+    if (!seasonEvents.length) return null;
+    const homeN = norm(nameToTsdb(m[5]));
+    const awayN = norm(nameToTsdb(m[6]));
+    const targetDate = `${m[0]}-${String(m[1]+1).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+
+    const teamMatches = (a, b) =>
+      a === b || a.startsWith(b) || b.startsWith(a);
+
+    return seasonEvents.find(e => {
+      if (!e.dateEvent) return false;
+      const dDiff = Math.abs(new Date(e.dateEvent) - new Date(targetDate)) / 86400000;
+      if (dDiff > 1.5) return false;
+      const eh = norm(e.strHomeTeam);
+      const ea = norm(e.strAwayTeam);
+      return (teamMatches(eh, homeN) && teamMatches(ea, awayN)) ||
+             (teamMatches(eh, awayN) && teamMatches(ea, homeN));
+    }) || null;
+  }
+
+  // ─── Score sync ──────────────────────────────────────────────────────────
+  async function syncScores(force) {
+    setBadge('syncing');
+    try {
+      await loadSeason(force);
+      let updated = 0;
+
+      for (const m of MATCHES) {
+        const ev = findEvent(m);
+        if (!ev) continue;
+        eventByMatchNum[m[12]] = ev.idEvent;
+
+        // RESPECT MANUAL DATA: if either score is already set, skip.
+        if (m[10] !== null || m[11] !== null) continue;
+
+        const hs = (ev.intHomeScore !== null && ev.intHomeScore !== '') ? parseInt(ev.intHomeScore) : null;
+        const as = (ev.intAwayScore !== null && ev.intAwayScore !== '') ? parseInt(ev.intAwayScore) : null;
+        if (hs === null || as === null) continue;
+
+        const apiHomeN = norm(ev.strHomeTeam);
+        const myHomeN  = norm(nameToTsdb(m[5]));
+        if (apiHomeN === myHomeN || apiHomeN.startsWith(myHomeN) || myHomeN.startsWith(apiHomeN)) {
+          m[10] = hs; m[11] = as;
+        } else {
+          m[10] = as; m[11] = hs;
+        }
+        updated++;
+      }
+
+      if (updated > 0) triggerRerender();
+      setBadge('ok', updated);
+      console.log(`[TSDB] ${updated} match score(s) updated`);
+    } catch (e) {
+      console.error('[TSDB] sync failed:', e);
+      setBadge('error');
+    }
+  }
+
+  function triggerRerender() {
+    ['renderFixtures','renderCalendar','renderEPG','renderGroupTables',
+     'renderUpcomingBar','renderDashboard','renderCalendarMobile'].forEach(fn => {
+      if (typeof window[fn] === 'function') {
+        try { window[fn](); } catch(e) { console.warn('[TSDB] re-render', fn, e); }
+      }
+    });
+  }
+
+  // ─── Match-report fallback (wraps your existing fetchMatchReport) ────────
+  if (typeof window.fetchMatchReport === 'function') {
+    const original = window.fetchMatchReport;
+    window.fetchMatchReport = async function(matchIdx) {
+      const manual = await original(matchIdx);
+      if (manual) return manual;          // manual MATCH_REPORTS data always wins
+      try {
+        return await fetchReportFromTsdb(matchIdx);
+      } catch (e) {
+        console.warn('[TSDB] timeline fetch failed for match', matchIdx, e);
+        return null;
+      }
+    };
+  }
+
+  async function fetchReportFromTsdb(matchIdx) {
+    const m = MATCHES[matchIdx];
+    if (!m) return null;
+    const matchNum = m[12];
+    const hasScore = m[10] !== null && m[11] !== null;
+
+    // Persistent cache for finished matches
+    if (hasScore) {
+      try {
+        const c = JSON.parse(localStorage.getItem(`tsdb_report_${matchNum}`) || 'null');
+        if (c && c.report) return c.report;
+      } catch(e) {}
+    }
+
+    if (!eventByMatchNum[matchNum]) {
+      await loadSeason();
+      const ev = findEvent(m);
+      if (!ev) return null;
+      eventByMatchNum[matchNum] = ev.idEvent;
+    }
+    const evId = eventByMatchNum[matchNum];
+
+    const r = await fetch(`${TSDB_V1}/lookuptimeline.php?id=${evId}`);
+    const data = await r.json();
+    const tl = data.timeline || [];
+    if (!tl.length) return null;
+
+    const report = transformTimeline(tl, m);
+    if (!report.goals.length && !report.cards.length) return null;
+
+    if (hasScore) {
+      try {
+        localStorage.setItem(`tsdb_report_${matchNum}`, JSON.stringify({ts: Date.now(), report}));
+      } catch(e) {}
+    }
+    return report;
+  }
+
+  function transformTimeline(timeline, m) {
+    const goals = [], cards = [];
+    const home = m[5], away = m[6];
+    const homeN = norm(nameToTsdb(home));
+    const awayN = norm(nameToTsdb(away));
+
+    for (const e of timeline) {
+      const teamRaw = e.strTeam || '';
+      const teamN = norm(teamRaw);
+      const teamName =
+        (teamN === homeN || teamN.startsWith(homeN) || homeN.startsWith(teamN)) ? home :
+        (teamN === awayN || teamN.startsWith(awayN) || awayN.startsWith(teamN)) ? away :
+        nameFromTsdb(teamRaw);
+
+      const minute = parseInt(e.intTime) || 0;
+      const player = e.strPlayer || '';
+      const type   = (e.strTimeline || '').toLowerCase();
+      const detail = (e.strTimelineDetail || '').toLowerCase();
+
+      if (type === 'goal') {
+        goals.push({
+          team: teamName,
+          player,
+          minute,
+          assist: e.strAssist || null,
+          is_own_goal: detail.includes('own')
+        });
+      } else if (type === 'card') {
+        cards.push({
+          team: teamName,
+          player,
+          minute,
+          type: detail.includes('red') ? 'red' : 'yellow'
+        });
+      }
+    }
+    return { goals, cards, penalties: [] };
+  }
+
+  // ─── Status badge UI ─────────────────────────────────────────────────────
+  function createBadge() {
+    const el = document.createElement('div');
+    el.id = 'tsdb-badge';
+    el.title = 'TheSportsDB live data — click to refresh now';
+    el.innerHTML = `
+      <span class="dot"></span>
+      <span class="lbl">Live</span>
+      <span class="sub" id="tsdb-sub">…</span>
+    `;
+    el.addEventListener('click', () => syncScores(true));
+    document.body.appendChild(el);
+  }
+
+  function setBadge(state, count) {
+    const el = document.getElementById('tsdb-badge');
+    if (!el) return;
+    el.classList.remove('ok','syncing','error');
+    el.classList.add(state);
+    const sub = document.getElementById('tsdb-sub');
+    if (state === 'syncing') sub.textContent = 'syncing…';
+    else if (state === 'error') sub.textContent = 'offline';
+    else {
+      const t = new Date();
+      const time = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+      sub.textContent = count ? `+${count} · ${time}` : time;
+    }
+  }
+
+  // ─── Lineups & Stats (drawer additions) ──────────────────────────────────
+  // Same fetch pattern as timeline: cache aggressively, fetch on demand,
+  // inject sections next to your existing Goals & Cards block.
+
+  async function loadLineups(matchIdx) {
+    const m = MATCHES[matchIdx];
+    if (!m) return null;
+    const matchNum = m[12];
+    const hasScore = m[10] !== null && m[11] !== null;
+
+    if (hasScore) {
+      try {
+        const c = JSON.parse(localStorage.getItem(`tsdb_lineup_${matchNum}`) || 'null');
+        if (c && c.data) return c.data;
+      } catch(e) {}
+    }
+    if (!eventByMatchNum[matchNum]) {
+      await loadSeason();
+      const ev = findEvent(m);
+      if (!ev) return null;
+      eventByMatchNum[matchNum] = ev.idEvent;
+    }
+    const r = await fetch(`${TSDB_V1}/lookuplineup.php?id=${eventByMatchNum[matchNum]}`);
+    const d = await r.json();
+    const lineup = d.lineup || d.lineups || d.players || [];
+    if (!lineup.length) return null;
+    if (hasScore) {
+      try { localStorage.setItem(`tsdb_lineup_${matchNum}`, JSON.stringify({ts: Date.now(), data: lineup})); } catch(e) {}
+    }
+    return lineup;
+  }
+
+  async function loadStats(matchIdx) {
+    const m = MATCHES[matchIdx];
+    if (!m) return null;
+    const matchNum = m[12];
+    const hasScore = m[10] !== null && m[11] !== null;
+
+    if (hasScore) {
+      try {
+        const c = JSON.parse(localStorage.getItem(`tsdb_stats_${matchNum}`) || 'null');
+        if (c && c.data) return c.data;
+      } catch(e) {}
+    }
+    if (!eventByMatchNum[matchNum]) {
+      await loadSeason();
+      const ev = findEvent(m);
+      if (!ev) return null;
+      eventByMatchNum[matchNum] = ev.idEvent;
+    }
+    const r = await fetch(`${TSDB_V1}/lookupeventstats.php?id=${eventByMatchNum[matchNum]}`);
+    const d = await r.json();
+    const stats = d.eventstats || d.stats || [];
+    if (!stats.length) return null;
+    if (hasScore) {
+      try { localStorage.setItem(`tsdb_stats_${matchNum}`, JSON.stringify({ts: Date.now(), data: stats})); } catch(e) {}
+    }
+    return stats;
+  }
+
+  function renderLineupsBlock(container, matchIdx, lineup) {
+    const m = MATCHES[matchIdx];
+    if (!m) { container.style.display='none'; return; }
+    if (!lineup || !lineup.length) {
+      container.style.display = 'none';
+      return;
+    }
+    const homeN = norm(nameToTsdb(m[5]));
+    const awayN = norm(nameToTsdb(m[6]));
+
+    const home = [], away = [];
+    for (const p of lineup) {
+      const tn = norm(p.strTeam || '');
+      const isStarter = (p.strSubstitute || '').toLowerCase() !== 'yes';
+      const entry = {
+        name: p.strPlayer || '?',
+        pos:  p.strPosition || '',
+        num:  p.intSquadNumber || '',
+        starter: isStarter
+      };
+      if (tn === homeN || tn.startsWith(homeN) || homeN.startsWith(tn)) home.push(entry);
+      else if (tn === awayN || tn.startsWith(awayN) || awayN.startsWith(tn)) away.push(entry);
+    }
+    // Sort: starters first, then by position
+    const sort = (a,b) => (a.starter===b.starter ? 0 : (a.starter ? -1 : 1));
+    home.sort(sort); away.sort(sort);
+
+    const col = (arr, teamName) => {
+      const starters = arr.filter(p => p.starter);
+      const subs = arr.filter(p => !p.starter);
+      const li = p => `<div class="tsdb-lineup-row"><span class="tsdb-lineup-num">${p.num || ''}</span><span class="tsdb-lineup-name">${p.name}</span><span class="tsdb-lineup-pos">${p.pos || ''}</span></div>`;
+      return `<div class="tsdb-lineup-col">
+        <div class="tsdb-lineup-team">${teamName}</div>
+        ${starters.map(li).join('')}
+        ${subs.length ? `<div class="tsdb-lineup-subs-label">Substitutes</div>${subs.map(li).join('')}` : ''}
+      </div>`;
+    };
+
+    container.innerHTML = `
+      <div class="drawer-section-title"><i class="ph ph-users-three"></i> Starting XIs</div>
+      <div class="tsdb-lineups">
+        ${col(home, m[5])}
+        ${col(away, m[6])}
+      </div>`;
+    container.style.display = '';
+  }
+
+  function renderStatsBlock(container, matchIdx, stats) {
+    const m = MATCHES[matchIdx];
+    if (!m) { container.style.display='none'; return; }
+    if (!stats || !stats.length) { container.style.display = 'none'; return; }
+
+    const rows = stats.map(s => {
+      const label = s.strStat || '';
+      const h = s.intHome !== null && s.intHome !== '' ? s.intHome : '–';
+      const a = s.intAway !== null && s.intAway !== '' ? s.intAway : '–';
+      // Bar fill — try to normalize percentages
+      const hn = parseFloat(h), an = parseFloat(a);
+      const total = (isFinite(hn) && isFinite(an)) ? (hn + an) : 0;
+      const hPct = total > 0 ? Math.round(hn / total * 100) : 50;
+      return `<div class="tsdb-stat-row">
+        <span class="tsdb-stat-h">${h}</span>
+        <div class="tsdb-stat-mid">
+          <div class="tsdb-stat-label">${label}</div>
+          <div class="tsdb-stat-bar"><div class="tsdb-stat-bar-h" style="width:${hPct}%"></div></div>
+        </div>
+        <span class="tsdb-stat-a">${a}</span>
+      </div>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="drawer-section-title"><i class="ph ph-chart-bar"></i> Match Stats</div>
+      ${rows}`;
+    container.style.display = '';
+  }
+
+  // Patch renderMatchReport so that any time Goals & Cards is rendered for a
+  // finished match, lineups + stats blocks are injected next to it and filled.
+  if (typeof window.renderMatchReport === 'function') {
+    const originalRender = window.renderMatchReport;
+    window.renderMatchReport = function(matchIdx, report) {
+      originalRender(matchIdx, report);
+      const m = MATCHES[matchIdx];
+      if (!m) return;
+      const hasScore = m[10] !== null && m[11] !== null;
+      if (!hasScore) return; // only inject for finished matches
+
+      document.querySelectorAll(
+        `[data-match-report-block][data-match-idx="${matchIdx}"]`
+      ).forEach(block => {
+        const parent = block.parentNode;
+        if (!parent) return;
+
+        // Lineups
+        let lineupsBlock = parent.querySelector(
+          `[data-tsdb-lineups][data-match-idx="${matchIdx}"]`
+        );
+        if (!lineupsBlock) {
+          lineupsBlock = document.createElement('div');
+          lineupsBlock.setAttribute('data-tsdb-lineups', '');
+          lineupsBlock.setAttribute('data-match-idx', matchIdx);
+          lineupsBlock.style.marginBottom = '18px';
+          lineupsBlock.innerHTML = `<div class="drawer-section-title"><i class="ph ph-users-three"></i> Starting XIs</div><div class="mr-loading">Loading lineups…</div>`;
+          block.after(lineupsBlock);
+          loadLineups(matchIdx)
+            .then(d => renderLineupsBlock(lineupsBlock, matchIdx, d))
+            .catch(() => { lineupsBlock.style.display = 'none'; });
+        }
+
+        // Stats
+        let statsBlock = parent.querySelector(
+          `[data-tsdb-stats][data-match-idx="${matchIdx}"]`
+        );
+        if (!statsBlock) {
+          statsBlock = document.createElement('div');
+          statsBlock.setAttribute('data-tsdb-stats', '');
+          statsBlock.setAttribute('data-match-idx', matchIdx);
+          statsBlock.style.marginBottom = '18px';
+          statsBlock.innerHTML = `<div class="drawer-section-title"><i class="ph ph-chart-bar"></i> Match Stats</div><div class="mr-loading">Loading stats…</div>`;
+          lineupsBlock.after(statsBlock);
+          loadStats(matchIdx)
+            .then(d => renderStatsBlock(statsBlock, matchIdx, d))
+            .catch(() => { statsBlock.style.display = 'none'; });
+        }
+      });
+    };
+  }
+
+  // ─── Team crests on team pages ──────────────────────────────────────────
+  async function loadTeamBadge(teamName) {
+    const cached = localStorage.getItem(`tsdb_badge_${teamName}`);
+    if (cached) return cached === 'NONE' ? null : cached;
+
+    try {
+      const q = encodeURIComponent(nameToTsdb(teamName));
+      const r = await fetch(`${TSDB_V1}/searchteams.php?t=${q}`);
+      const d = await r.json();
+      const teams = d.teams || [];
+      // Prefer Soccer national teams. Filter loosely: strSport=Soccer
+      // and either strTeamShort/Alternate hints at national, OR it's the only result.
+      const soccer = teams.filter(t => t.strSport === 'Soccer');
+      const national = soccer.find(t => {
+        const blob = ((t.strAlternate || '') + ' ' + (t.strTeamShort || '') + ' ' + (t.strDescriptionEN || '')).toLowerCase();
+        return /national|fifa/.test(blob);
+      }) || soccer[0];
+      const badge = national && (national.strBadge || national.strTeamBadge);
+      if (badge) {
+        localStorage.setItem(`tsdb_badge_${teamName}`, badge);
+        return badge;
+      }
+      localStorage.setItem(`tsdb_badge_${teamName}`, 'NONE');
+      return null;
+    } catch(e) {
+      return null;
+    }
+  }
+
+  // Watch for team-hero-flag elements and replace them with the crest when available
+  function checkTeamPage() {
+    document.querySelectorAll('.team-hero-flag:not([data-tsdb-done])').forEach(el => {
+      el.setAttribute('data-tsdb-done', '1');
+      const heroH2 = el.parentNode && el.parentNode.querySelector('.team-hero-info h2');
+      if (!heroH2) return;
+      const teamName = heroH2.textContent.trim();
+      loadTeamBadge(teamName).then(badge => {
+        if (!badge) return; // keep the original flag fallback
+        // Build crest, keep flag as a small overlay underneath for recognizability
+        el.innerHTML = `<img class="tsdb-crest" src="${badge}/medium" alt="${teamName} crest" onerror="this.onerror=null;this.style.display='none'">`;
+      });
+    });
+  }
+  const teamPageObserver = new MutationObserver(() => checkTeamPage());
+  teamPageObserver.observe(document.body, { childList: true, subtree: true });
+
+  // ─── Live score on dashboard ───────────────────────────────────────────
+  // Uses V2 livescore endpoint (premium-only — your key has access).
+  // Polls every 30s while any match is in its kickoff window.
+
+  let liveLoopActive = false;
+
+  async function fetchLivescores() {
+    try {
+      const r = await fetch(`https://www.thesportsdb.com/api/v2/json/livescore/${WC_LEAGUE}`, {
+        headers: { 'X-API-KEY': TSDB_KEY }
+      });
+      if (!r.ok) return [];
+      const d = await r.json();
+      return d.events || d.livescore || d.matches || [];
+    } catch(e) {
+      return [];
+    }
+  }
+
+  async function updateLiveBanner() {
+    const cards = document.querySelectorAll('.db-live-card');
+    if (!cards.length) return false;
+
+    const events = await fetchLivescores();
+    cards.forEach(card => {
+      const oc = card.getAttribute('onclick') || '';
+      const mm = oc.match(/jumpToFixture\((\d+)\)/);
+      if (!mm) return;
+      const idx = parseInt(mm[1]);
+      const match = MATCHES[idx];
+      if (!match) return;
+
+      const myHomeN = norm(nameToTsdb(match[5]));
+      const myAwayN = norm(nameToTsdb(match[6]));
+      const ev = events.find(e => {
+        const eh = norm(e.strHomeTeam || '');
+        const ea = norm(e.strAwayTeam || '');
+        const matchPair = (a, b, x, y) =>
+          (a === x || a.startsWith(x) || x.startsWith(a)) &&
+          (b === y || b.startsWith(y) || y.startsWith(b));
+        return matchPair(eh, ea, myHomeN, myAwayN) ||
+               matchPair(eh, ea, myAwayN, myHomeN);
+      });
+      if (!ev) return;
+
+      const hs = (ev.intHomeScore !== null && ev.intHomeScore !== '') ? ev.intHomeScore : null;
+      const as = (ev.intAwayScore !== null && ev.intAwayScore !== '') ? ev.intAwayScore : null;
+      const apiHomeN = norm(ev.strHomeTeam || '');
+      const flipped = !(apiHomeN === myHomeN || apiHomeN.startsWith(myHomeN) || myHomeN.startsWith(apiHomeN));
+      const displayH = hs !== null ? (flipped ? as : hs) : null;
+      const displayA = as !== null ? (flipped ? hs : as) : null;
+      const prog = ev.strProgress || ev.strStatus || '';
+      const progLabel = prog && prog.toLowerCase() !== 'live' ? `${prog}'` : 'LIVE';
+
+      const scoreSpan = card.querySelector('.db-live-score');
+      if (scoreSpan && displayH !== null && displayA !== null) {
+        scoreSpan.innerHTML = `<span class="db-live-score-live"><i class="ph-fill ph-record"></i> <span class="tsdb-live-num">${displayH}–${displayA}</span> <span class="tsdb-live-min">${progLabel}</span></span>`;
+      }
+    });
+    return true;
+  }
+
+  function liveBannerTick() {
+    if (document.querySelectorAll('.db-live-card').length) {
+      updateLiveBanner();
+    }
+  }
+  setInterval(liveBannerTick, 30000);
+
+  // When dashboard re-renders (e.g. after our score sync), refresh the live banner too
+  if (typeof window.renderDashboard === 'function') {
+    const origDashboard = window.renderDashboard;
+    window.renderDashboard = function() {
+      const out = origDashboard.apply(this, arguments);
+      setTimeout(updateLiveBanner, 50);
+      return out;
+    };
+  }
+
+  // ─── Boot ────────────────────────────────────────────────────────────────
+  function init() {
+    createBadge();
+    checkTeamPage();         // catch any team page already in DOM
+    syncScores().then(() => {
+      updateLiveBanner();
+      setInterval(() => syncScores(true), POLL_MS);
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+<style>
+/* Live-data badge — reuses your site's CSS variables */
+#tsdb-badge {
+  position: fixed; bottom: 14px; right: 14px; z-index: 9999;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e5ea);
+  border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.10);
+  font: 600 11px/1 'Inter', sans-serif;
+  color: var(--ink, #16181d);
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 12px;
+  cursor: pointer; user-select: none;
+  transition: background .15s, transform .1s;
+}
+#tsdb-badge:hover  { background: var(--surface2, #eef0f3); }
+#tsdb-badge:active { transform: scale(.97); }
+#tsdb-badge .dot {
+  width: 7px; height: 7px; border-radius: 50%; background: #999; flex-shrink: 0;
+}
+#tsdb-badge.ok      .dot { background: var(--positive, #2d6a4f); }
+#tsdb-badge.syncing .dot { background: var(--accent,   #e8541a); animation: tsdbBlink 1s infinite; }
+#tsdb-badge.error   .dot { background: var(--live-red, #dc2626); }
+@keyframes tsdbBlink { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
+#tsdb-badge .lbl { letter-spacing: .04em; text-transform: uppercase; font-size: 10px; }
+#tsdb-badge .sub { color: var(--muted, #7c8494); font-weight: 500; font-size: 10px; }
+
+/* Lineups */
+.tsdb-lineups {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+  font-size: 12.5px;
+}
+.tsdb-lineup-col { min-width: 0; }
+.tsdb-lineup-team {
+  font-weight: 700; font-size: 12px;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted, #7c8494);
+  padding-bottom: 6px; margin-bottom: 6px;
+  border-bottom: 1px solid var(--border, #e2e5ea);
+}
+.tsdb-lineup-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 3px 0; line-height: 1.3;
+}
+.tsdb-lineup-num {
+  font-weight: 700; color: var(--accent, #e8541a);
+  min-width: 22px; font-size: 11px;
+}
+.tsdb-lineup-name { flex: 1; color: var(--ink, #16181d); }
+.tsdb-lineup-pos {
+  font-size: 10px; color: var(--muted, #7c8494);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.tsdb-lineup-subs-label {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted, #7c8494);
+  margin-top: 10px; padding-top: 8px;
+  border-top: 1px dashed var(--border, #e2e5ea);
+}
+@media (max-width: 540px) {
+  .tsdb-lineups { grid-template-columns: 1fr; gap: 14px; }
+}
+
+/* Stats */
+.tsdb-stat-row {
+  display: grid; grid-template-columns: 40px 1fr 40px;
+  align-items: center; gap: 12px;
+  padding: 6px 0;
+  font-size: 12px;
+}
+.tsdb-stat-h { text-align: right; font-weight: 700; color: var(--ink, #16181d); }
+.tsdb-stat-a { text-align: left;  font-weight: 700; color: var(--ink, #16181d); }
+.tsdb-stat-mid { display: flex; flex-direction: column; gap: 4px; }
+.tsdb-stat-label {
+  text-align: center;
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted, #7c8494);
+}
+.tsdb-stat-bar {
+  height: 3px; border-radius: 2px;
+  background: var(--surface2, #eef0f3);
+  overflow: hidden;
+}
+.tsdb-stat-bar-h {
+  height: 100%; background: var(--accent, #e8541a);
+  transition: width .3s ease;
+}
+
+/* Team crest */
+.tsdb-crest {
+  width: 84px; height: 84px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,.25));
+}
+
+/* Live score display */
+.tsdb-live-num {
+  font-weight: 800; font-size: 16px; letter-spacing: .02em;
+}
+.tsdb-live-min {
+  font-size: 10px; font-weight: 700;
+  opacity: .85; margin-left: 4px;
+}
+</style>
 
 </body>
 </html>
