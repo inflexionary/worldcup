@@ -822,9 +822,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-s
   border-left:3px solid var(--gold) !important;
 }
 @media(max-width:800px){
-  .fix-cols{flex-direction:column;height:auto}
-  .fix-col-list{width:100%;max-height:55vh;border-right:none;border-bottom:2px solid var(--border);overflow-y:auto}
-  .fix-col-detail{min-height:50vh}
+  /* Single-scroll on mobile: stop the inner panels fighting each other for
+     touch-scroll. The whole page scrolls naturally; both panels flow inline. */
+  .fix-cols{flex-direction:column;height:auto;overflow:visible}
+  .fix-col-list{width:100%;max-height:none;overflow:visible;border-right:none;border-bottom:2px solid var(--border)}
+  .fix-col-detail{min-height:auto;overflow:visible}
+  /* When user picks a match, scroll-margin lets the auto-scroll land
+     nicely under the sticky top bar. */
+  .fix-col-detail{scroll-margin-top:140px}
 }
 
 /* Drawer content */
@@ -2064,6 +2069,9 @@ footer .footer-credit { color: #5060a0; }
 .mr-minute{font-size:11px;font-weight:700;color:#6878a8;width:32px;flex-shrink:0;text-align:right}
 .mr-icon{width:20px;text-align:center;flex-shrink:0;font-size:13px}
 .mr-player{color:#c0cae0;font-weight:600}
+.mr-player-clickable{cursor:pointer;border-radius:3px;padding:1px 3px;margin:0 -3px;transition:background .12s,color .12s}
+.mr-player-clickable:hover{background:rgba(255,255,255,.08);color:var(--accent,#e8541a)}
+.mr-player-clickable:focus-visible{outline:2px solid var(--accent,#e8541a);outline-offset:1px}
 .mr-team{color:#5a6a90;font-size:11px;margin-left:2px}
 .mr-assist{color:#4a5a80;font-size:11px}
 .mr-pens{margin-top:10px;padding:10px;background:#0a0d1e;border-radius:6px;border:1px solid #1a2448}
@@ -2775,9 +2783,14 @@ function flag(name,size){
 // All internal times are UTC. AEST = UTC+10.
 function matchStartUTC(m){ return new Date(Date.UTC(m[0],m[1],m[2],m[3]-10,m[4])) }
 function matchDurMins(grp){
-  if(grp==="Final"||grp==="SF"||grp==="3rd") return 115;
-  if(grp==="QF"||grp==="R16"||grp==="R32") return 105;
-  return 100;
+  // Generous worst-case windows. The dashboard's LIVE NOW band uses these
+  // to decide which cards to show, so it's better to err on the long side —
+  // a card stays in "live" a bit too long > a card dropping out early.
+  // TheSportsDB livescore poll then refines the actual FT moment via strStatus.
+  if(grp==="Final")                              return 200;  // 90 + 30 ET + 30 pens + breaks + ceremony buffer
+  if(grp==="SF"||grp==="3rd")                    return 180;  // 90 + 30 ET + 30 pens + breaks
+  if(grp==="QF"||grp==="R16"||grp==="R32")       return 180;
+  return 140;  // group: 90 + heavy stoppage + HT + delayed kickoff buffer (no ET possible)
 }
 function matchEndUTC(m){ return new Date(matchStartUTC(m).getTime()+matchDurMins(m[7])*60000) }
 
@@ -4676,8 +4689,24 @@ function renderMatchReport(matchIdx, report) {
   const m = MATCHES[matchIdx];
 
   if (!report) {
-    // No event data — hide the whole block (heading + body) rather than
-    // showing an empty section under the "Goals & Cards" header.
+    // For live or finished matches, show an empty state so the user knows
+    // we tried (and so they can see goals appear as they're recorded).
+    // For upcoming matches, hide the section entirely (no point).
+    const nowMs = Date.now();
+    const startMs = matchStartUTC(m).getTime();
+    const endMs = matchEndUTC(m).getTime();
+    const hasScore = m[10] !== null && m[11] !== null;
+    const isLiveOrFinished = hasScore || nowMs >= startMs;
+
+    if (isLiveOrFinished) {
+      sections.forEach(el => {
+        const block = el.closest('[data-match-report-block]');
+        if (block) block.style.display = '';
+        el.innerHTML = `<div class="mr-empty">No goals or cards recorded yet. ${nowMs <= endMs ? 'Events will appear as the match progresses (refreshed every 2 min).' : 'TheSportsDB may take some time to publish post-match events.'}</div>`;
+      });
+      return;
+    }
+    // Upcoming match: hide the whole block
     sections.forEach(el => {
       const block = el.closest('[data-match-report-block]');
       if (block) block.style.display = 'none';
@@ -4794,6 +4823,15 @@ function openDrawer(matchIdx) {
 
   activeFixIdx = matchIdx;
 
+  // Detect if match is currently in its live window
+  const nowMs   = Date.now();
+  const startMs = matchStartUTC(m).getTime();
+  const endMs   = matchEndUTC(m).getTime();
+  const isLive  = startMs <= nowMs && endMs >= nowMs;
+  const livePill = isLive
+    ? `<div class="drawer-live-pill"><i class="ph-fill ph-record"></i> LIVE</div>`
+    : '';
+
   const detail = document.getElementById('fixColDetail');
   if(!detail) return;
   detail.innerHTML = `
@@ -4803,7 +4841,10 @@ function openDrawer(matchIdx) {
           ${flag(m[5], 'lg')}
           <div class="drawer-team-name team-link" onclick="goToTeamPage('${m[5]}')">${m[5]}</div>
         </div>
-        <div class="drawer-vs">${hasScore ? `${m[10]}–${m[11]}${m[13]==="pen"?"<span style=\"font-size:.55em;opacity:.65\"> P</span>":m[13]==="aet"?"<span style=\"font-size:.55em;opacity:.65\"> AET</span>":""}` : 'v'}</div>
+        <div class="drawer-vs-wrap">
+          <div class="drawer-vs">${hasScore ? `${m[10]}–${m[11]}${m[13]==="pen"?"<span style=\"font-size:.55em;opacity:.65\"> P</span>":m[13]==="aet"?"<span style=\"font-size:.55em;opacity:.65\"> AET</span>":""}` : 'v'}</div>
+          ${livePill}
+        </div>
         <div class="drawer-team">
           ${flag(m[6], 'lg')}
           <div class="drawer-team-name team-link" onclick="goToTeamPage('${m[6]}')">${m[6]}</div>
@@ -4821,11 +4862,18 @@ function openDrawer(matchIdx) {
 
   if (fixCache[matchIdx]) {
     renderDrawerContent(matchIdx, fixCache[matchIdx]);
-    // Re-trigger report render for cached content (div exists now)
-    if (hasScore) fetchMatchReport(matchIdx).then(r => renderMatchReport(matchIdx, r));
+    // Re-trigger report render for any match — empty state shows for live/finished
+    fetchMatchReport(matchIdx).then(r => renderMatchReport(matchIdx, r));
   } else {
     fetchMatchInfo(matchIdx, m, grpLabel, isKO);
-    if (hasScore) fetchMatchReport(matchIdx).then(r => renderMatchReport(matchIdx, r));
+    fetchMatchReport(matchIdx).then(r => renderMatchReport(matchIdx, r));
+  }
+
+  // Mobile single-scroll UX: when a match is selected, smooth-scroll the page
+  // down so the detail panel is comfortably in view. Desktop layout has them
+  // side-by-side so this is a no-op there.
+  if (window.matchMedia('(max-width: 800px)').matches) {
+    setTimeout(() => detail.scrollIntoView({behavior: 'smooth', block: 'start'}), 80);
   }
 }
 
@@ -5020,7 +5068,17 @@ function renderDashboard() {
   const afterTourn  = now > tournEnd;
 
   // Categorise matches
-  const live     = MATCHES.filter(m => matchStartUTC(m) <= now && matchEndUTC(m) >= now);
+  // LIVE NOW band shows: currently-live, just-finished (last 20 min), and starting-soon (next 60 min)
+  const JUST_FINISHED_MS = 20 * 60 * 1000;
+  const STARTING_SOON_MS = 60 * 60 * 1000;
+  const live     = MATCHES.filter(m => {
+    const start = matchStartUTC(m).getTime();
+    const end   = matchEndUTC(m).getTime();
+    const t     = now.getTime();
+    return (start <= t && end >= t)                          // in-play
+        || (end < t && (t - end) <= JUST_FINISHED_MS)        // recently finished
+        || (start > t && (start - t) <= STARTING_SOON_MS);   // starting soon
+  }).sort((a,b) => matchStartUTC(a) - matchStartUTC(b));
   const recent   = MATCHES.filter(m => m[10] !== null && m[11] !== null)
                           .sort((a,b) => matchStartUTC(b) - matchStartUTC(a))
                           .slice(0, 6);
@@ -5037,15 +5095,38 @@ function renderDashboard() {
     html += `<div class="db-hero db-hero-live">
       <div class="db-hero-eyebrow"><i class="ph-fill ph-record"></i> LIVE NOW</div>
       <div class="db-live-matches">
-        ${live.map(m => `
+        ${live.map(m => {
+          const start = matchStartUTC(m).getTime();
+          const end   = matchEndUTC(m).getTime();
+          const t     = now.getTime();
+          let scoreInner;
+          if (start <= t && end >= t) {
+            // In-play
+            if (m[10] !== null && m[11] !== null) {
+              scoreInner = `<span class="db-live-score-live"><i class="ph-fill ph-record"></i> <span class="tsdb-live-num">${m[10]}–${m[11]}</span> <span class="tsdb-live-min">LIVE</span></span>`;
+            } else {
+              scoreInner = `<span class="db-live-score-live"><i class="ph-fill ph-record"></i> LIVE NOW</span>`;
+            }
+          } else if (end < t) {
+            // Just finished
+            const hs = m[10] !== null ? m[10] : '?';
+            const as = m[11] !== null ? m[11] : '?';
+            scoreInner = `<span class="db-live-score-live"><span class="tsdb-live-num">${hs}–${as}</span> <span class="tsdb-live-min">FT</span></span>`;
+          } else {
+            // Starting soon
+            const minsToStart = Math.max(1, Math.round((start - t) / 60000));
+            scoreInner = `<span class="db-live-score-live"><i class="ph ph-clock"></i> <span class="tsdb-live-min">Starts in ${minsToStart}m</span></span>`;
+          }
+          return `
           <div class="db-live-card" onclick="jumpToFixture(${MATCHES.indexOf(m)})">
             <div class="db-live-teams">
               <span class="db-live-team">${flag(m[5])} ${m[5]}</span>
-              <span class="db-live-score"><span class="db-live-score-live"><i class="ph-fill ph-record"></i> LIVE NOW</span></span>
+              <span class="db-live-score">${scoreInner}</span>
               <span class="db-live-team">${m[6]} ${flag(m[6])}</span>
             </div>
             <div class="db-live-meta">Grp ${m[7]} · ${fmtTime(matchStartUTC(m))} AEST</div>
-          </div>`).join('')}
+          </div>`;
+        }).join('')}
       </div>
     </div>`;
   } else if (beforeTourn) {
@@ -7839,9 +7920,12 @@ drawChampionRibbon();
 }
 @media (min-width: 1400px) { .sim-drawer { width: 400px; } }
 @media (max-width: 900px) {
-  .sim-outer { flex-direction: column-reverse; }
-  .sim-drawer { width: 100%; height: auto; max-height: 65vh; border-left: none; border-top: 1px solid #1a2448; }
-  .sim-board { max-height: none; }
+  /* Single-scroll on mobile: the page itself is the only scroller. Drawer
+     sits on top (column-reverse), board flows below, no inner overflow. */
+  #pane-simulator { height: auto; overflow: visible; }
+  .sim-outer { flex-direction: column-reverse; overflow: visible; min-height: auto; }
+  .sim-drawer { width: 100%; height: auto; max-height: none; overflow: visible; border-left: none; border-top: 1px solid #1a2448; }
+  .sim-board { max-height: none; overflow: visible; }
 }
 .sim-drawer-content { padding: 18px 16px 32px; }
 
@@ -9954,7 +10038,14 @@ drawChampionRibbon();
     const homeN = norm(nameToTsdb(home));
     const awayN = norm(nameToTsdb(away));
 
+    // Side-effect: cache player name → idPlayer so renderMatchReport can wire clicks
+    window.__tsdbEventPlayerIds = window.__tsdbEventPlayerIds || {};
+    const idMap = window.__tsdbEventPlayerIds[m[12]] = window.__tsdbEventPlayerIds[m[12]] || {};
+
     for (const e of timeline) {
+      if (e.idPlayer && e.strPlayer) idMap[e.strPlayer] = e.idPlayer;
+      if (e.idAssist && e.strAssist) idMap[e.strAssist] = e.idAssist;
+
       const teamRaw = e.strTeam || '';
       const teamN = norm(teamRaw);
       const teamName =
@@ -9984,7 +10075,131 @@ drawChampionRibbon();
         });
       }
     }
+
+    // Persist to localStorage so the ID map survives reload
+    try { localStorage.setItem(`tsdb_eventids_${m[12]}`, JSON.stringify(idMap)); } catch(e) {}
+
     return { goals, cards, penalties: [] };
+  }
+
+  // Normalise name for fuzzy lookup ("Hwang In-beom" → "hwanginbeom")
+  function normName(s) {
+    if (!s) return '';
+    return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase().replace(/[^a-z]/g, '');
+  }
+  // Token-based name matching — handles word-order variations like
+  // "Hwang In-beom" vs "In Beom Hwang" that exact normalization misses.
+  function nameTokens(s) {
+    if (!s) return [];
+    return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase().split(/[^a-z]+/).filter(t => t.length >= 2);
+  }
+  function fuzzyFindId(name, rawMap) {
+    if (!name || !rawMap) return null;
+    // Try exact then normalized
+    if (rawMap[name]) return rawMap[name];
+    const targetN = normName(name);
+    const target = nameTokens(name);
+    if (!target.length) return null;
+    const targetSet = new Set(target);
+    for (const [k, v] of Object.entries(rawMap)) {
+      if (normName(k) === targetN) return v;
+      const t = nameTokens(k);
+      if (!t.length) continue;
+      // Same tokens regardless of order
+      if (t.length === target.length && t.every(tok => targetSet.has(tok))) return v;
+      // Or one is a subset of the other (handles "Lee" vs "Lee Kang-in")
+      if (t.length >= 2 && target.length >= 2) {
+        const tSet = new Set(t);
+        if (t.every(tok => targetSet.has(tok)) || target.every(tok => tSet.has(tok))) return v;
+      }
+    }
+    return null;
+  }
+
+  // Returns the RAW name→id map (caller uses fuzzyFindId for lookups)
+  function getPlayerIdMap(matchIdx) {
+    const m = MATCHES[matchIdx];
+    if (!m) return {};
+    const matchNum = m[12];
+    const raw = {};
+
+    // (1) Timeline cache (memory then localStorage)
+    let timelineIds = (window.__tsdbEventPlayerIds || {})[matchNum];
+    if (!timelineIds) {
+      try {
+        const stored = JSON.parse(localStorage.getItem(`tsdb_eventids_${matchNum}`) || 'null');
+        if (stored) {
+          window.__tsdbEventPlayerIds = window.__tsdbEventPlayerIds || {};
+          window.__tsdbEventPlayerIds[matchNum] = stored;
+          timelineIds = stored;
+        }
+      } catch(e) {}
+    }
+    if (timelineIds) Object.assign(raw, timelineIds);
+
+    // (2) Squad caches for both teams (memory then localStorage)
+    for (const team of [m[5], m[6]]) {
+      let squad = (window.__tsdbSquadCache || {})[team];
+      if (!squad) {
+        try {
+          const c = JSON.parse(localStorage.getItem(`tsdb_squad_${team}`) || 'null');
+          if (c && c.data) {
+            window.__tsdbSquadCache = window.__tsdbSquadCache || {};
+            window.__tsdbSquadCache[team] = c.data;
+            squad = c.data;
+          }
+        } catch(e) {}
+      }
+      if (squad) {
+        for (const p of squad) {
+          if (p.strPlayer && p.idPlayer && !raw[p.strPlayer]) raw[p.strPlayer] = p.idPlayer;
+        }
+      }
+    }
+
+    return raw;
+  }
+
+  // Background-load the timeline JUST to populate the ID cache. Used when the
+  // displayed report is from manual MATCH_REPORTS (no IDs in those entries).
+  async function loadEventPlayerIds(matchIdx) {
+    const m = MATCHES[matchIdx];
+    if (!m) return;
+    const matchNum = m[12];
+    if ((window.__tsdbEventPlayerIds || {})[matchNum]) return;
+    try {
+      const stored = JSON.parse(localStorage.getItem(`tsdb_eventids_${matchNum}`) || 'null');
+      if (stored) {
+        window.__tsdbEventPlayerIds = window.__tsdbEventPlayerIds || {};
+        window.__tsdbEventPlayerIds[matchNum] = stored;
+        return;
+      }
+    } catch(e) {}
+
+    if (!eventByMatchNum[matchNum]) {
+      await loadSeason();
+      const ev = findEvent(m);
+      if (!ev) return;
+      eventByMatchNum[matchNum] = ev.idEvent;
+    }
+    const evId = eventByMatchNum[matchNum];
+    try {
+      const r = await fetch(`${TSDB_V1}/lookuptimeline.php?id=${evId}`);
+      const data = await r.json();
+      const tl = data.timeline || [];
+      const idMap = {};
+      for (const e of tl) {
+        if (e.idPlayer && e.strPlayer) idMap[e.strPlayer] = e.idPlayer;
+        if (e.idAssist && e.strAssist) idMap[e.strAssist] = e.idAssist;
+      }
+      window.__tsdbEventPlayerIds = window.__tsdbEventPlayerIds || {};
+      window.__tsdbEventPlayerIds[matchNum] = idMap;
+      try { localStorage.setItem(`tsdb_eventids_${matchNum}`, JSON.stringify(idMap)); } catch(e) {}
+    } catch(e) {
+      console.warn('[TSDB] loadEventPlayerIds failed', e);
+    }
   }
 
   // ─── Status badge UI ─────────────────────────────────────────────────────
@@ -10035,12 +10250,33 @@ drawChampionRibbon();
     if (!eventByMatchNum[matchNum]) {
       await loadSeason();
       const ev = findEvent(m);
-      if (!ev) return null;
+      if (!ev) { console.warn(`[TSDB] no event found for match ${matchNum}`); return null; }
       eventByMatchNum[matchNum] = ev.idEvent;
     }
-    const r = await fetch(`${TSDB_V1}/lookuplineup.php?id=${eventByMatchNum[matchNum]}`);
-    const d = await r.json();
-    const lineup = d.lineup || d.lineups || d.players || [];
+    const evId = eventByMatchNum[matchNum];
+
+    // V1 first (premium key in URL = 100-entry limit, proven response format)
+    let lineup = [];
+    try {
+      const r1 = await fetch(`${TSDB_V1}/lookuplineup.php?id=${evId}`);
+      const d1 = await r1.json();
+      lineup = d1.lineup || d1.lineups || d1.players || [];
+    } catch(e) { console.warn('[TSDB] v1 lineup fetch failed', e); }
+
+    // V2 fallback (premium-only endpoint, in case V1 ever returns empty for a match V2 has)
+    if (!lineup.length) {
+      try {
+        const r2 = await fetch(`https://www.thesportsdb.com/api/v2/json/lookup/event_lineup/${evId}`, {
+          headers: { 'X-API-KEY': TSDB_KEY }
+        });
+        if (r2.ok) {
+          const d2 = await r2.json();
+          lineup = d2.lookup || d2.lineup || [];
+        }
+      } catch(e) { console.warn('[TSDB] v2 lineup fetch failed', e); }
+    }
+
+    console.log(`[TSDB] lineup match ${matchNum} (event ${evId}): ${lineup.length} entries`);
     if (!lineup.length) return null;
     if (hasScore) {
       try { localStorage.setItem(`tsdb_lineup_${matchNum}`, JSON.stringify({ts: Date.now(), data: lineup})); } catch(e) {}
@@ -10066,9 +10302,29 @@ drawChampionRibbon();
       if (!ev) return null;
       eventByMatchNum[matchNum] = ev.idEvent;
     }
-    const r = await fetch(`${TSDB_V1}/lookupeventstats.php?id=${eventByMatchNum[matchNum]}`);
-    const d = await r.json();
-    const stats = d.eventstats || d.stats || [];
+    const evId = eventByMatchNum[matchNum];
+
+    // V1 first (premium key, proven format)
+    let stats = [];
+    try {
+      const r1 = await fetch(`${TSDB_V1}/lookupeventstats.php?id=${evId}`);
+      const d1 = await r1.json();
+      stats = d1.eventstats || d1.stats || [];
+    } catch(e) { console.warn('[TSDB] v1 stats fetch failed', e); }
+
+    if (!stats.length) {
+      try {
+        const r2 = await fetch(`https://www.thesportsdb.com/api/v2/json/lookup/event_stats/${evId}`, {
+          headers: { 'X-API-KEY': TSDB_KEY }
+        });
+        if (r2.ok) {
+          const d2 = await r2.json();
+          stats = d2.lookup || d2.eventstats || d2.stats || [];
+        }
+      } catch(e) { console.warn('[TSDB] v2 stats fetch failed', e); }
+    }
+
+    console.log(`[TSDB] stats match ${matchNum} (event ${evId}): ${stats.length} entries`);
     if (!stats.length) return null;
     if (hasScore) {
       try { localStorage.setItem(`tsdb_stats_${matchNum}`, JSON.stringify({ts: Date.now(), data: stats})); } catch(e) {}
@@ -10079,36 +10335,66 @@ drawChampionRibbon();
   function renderLineupsBlock(container, matchIdx, lineup) {
     const m = MATCHES[matchIdx];
     if (!m) { container.style.display='none'; return; }
+    const hasScore = m[10] !== null && m[11] !== null;
+
     if (!lineup || !lineup.length) {
-      container.style.display = 'none';
+      // For finished matches, show a soft empty state so the user knows it tried.
+      // For upcoming matches, hide silently — lineups before kickoff are rare in TheSportsDB.
+      if (hasScore) {
+        container.innerHTML = `
+          <div class="drawer-section-title"><i class="ph ph-users-three"></i> Starting XIs</div>
+          <div class="tsdb-empty">Lineups not yet published. TheSportsDB's match data is community-edited and often takes hours to populate after a match.</div>`;
+        container.style.display = '';
+      } else {
+        container.style.display = 'none';
+      }
       return;
     }
+    const homeColor = (typeof teamCol === 'function') ? teamCol(m[5]) : '#e8541a';
+    const awayColor = (typeof teamCol === 'function') ? teamCol(m[6]) : '#e8541a';
     const homeN = norm(nameToTsdb(m[5]));
     const awayN = norm(nameToTsdb(m[6]));
 
     const home = [], away = [];
+    // Use the strHome field directly — TheSportsDB tags each player as "Yes"/"No".
+    // This is far more reliable than team-name matching (which fails on
+    // "Korea Republic" vs "South Korea" type mismatches).
+    const apiTeams = new Set();
     for (const p of lineup) {
-      const tn = norm(p.strTeam || '');
+      apiTeams.add(p.strTeam || '');
       const isStarter = (p.strSubstitute || '').toLowerCase() !== 'yes';
+      const isHomeSide = (p.strHome || '').toLowerCase() === 'yes';
       const entry = {
+        idPlayer: p.idPlayer || '',
         name: p.strPlayer || '?',
         pos:  p.strPosition || '',
         num:  p.intSquadNumber || '',
-        starter: isStarter
+        starter: isStarter,
+        raw: p  // keep the full lineup record for the modal to use immediately
       };
-      if (tn === homeN || tn.startsWith(homeN) || homeN.startsWith(tn)) home.push(entry);
-      else if (tn === awayN || tn.startsWith(awayN) || awayN.startsWith(tn)) away.push(entry);
+      if (isHomeSide) home.push(entry);
+      else away.push(entry);
     }
-    // Sort: starters first, then by position
+    console.log(`[TSDB] lineup match ${m[12]}: ${home.length} home + ${away.length} away (API teams: ${[...apiTeams].join(', ')})`);
     const sort = (a,b) => (a.starter===b.starter ? 0 : (a.starter ? -1 : 1));
     home.sort(sort); away.sort(sort);
 
-    const col = (arr, teamName) => {
+    // Cache the raw player data on window so the click handler can grab it without
+    // re-bucketing. Keyed by idPlayer (unique across all matches).
+    window.__tsdbLineupCache = window.__tsdbLineupCache || {};
+    [...home, ...away].forEach(e => { if (e.idPlayer) window.__tsdbLineupCache[e.idPlayer] = e.raw; });
+
+    const col = (arr, teamName, color) => {
       const starters = arr.filter(p => p.starter);
       const subs = arr.filter(p => !p.starter);
-      const li = p => `<div class="tsdb-lineup-row"><span class="tsdb-lineup-num">${p.num || ''}</span><span class="tsdb-lineup-name">${p.name}</span><span class="tsdb-lineup-pos">${p.pos || ''}</span></div>`;
+      const li = p => {
+        const clickable = p.idPlayer ? ' tsdb-lineup-row-clickable' : '';
+        const dataAttr = p.idPlayer ? ` data-tsdb-player-id="${p.idPlayer}"` : '';
+        const tabAttr = p.idPlayer ? ' role="button" tabindex="0"' : '';
+        return `<div class="tsdb-lineup-row${clickable}"${dataAttr}${tabAttr}><span class="tsdb-lineup-num" style="color:${color}">${p.num || ''}</span><span class="tsdb-lineup-name">${p.name}</span><span class="tsdb-lineup-pos">${p.pos || ''}</span></div>`;
+      };
       return `<div class="tsdb-lineup-col">
-        <div class="tsdb-lineup-team">${teamName}</div>
+        <div class="tsdb-lineup-team" style="border-bottom-color:${color}">${teamName}</div>
         ${starters.map(li).join('')}
         ${subs.length ? `<div class="tsdb-lineup-subs-label">Substitutes</div>${subs.map(li).join('')}` : ''}
       </div>`;
@@ -10117,32 +10403,99 @@ drawChampionRibbon();
     container.innerHTML = `
       <div class="drawer-section-title"><i class="ph ph-users-three"></i> Starting XIs</div>
       <div class="tsdb-lineups">
-        ${col(home, m[5])}
-        ${col(away, m[6])}
+        ${col(home, m[5], homeColor)}
+        ${col(away, m[6], awayColor)}
       </div>`;
     container.style.display = '';
+
+    // Wire click + keyboard handlers on clickable rows. We fetch the rich player
+    // profile (bio, dateBorn, height, social links) on demand via lookupplayer.php
+    // since lineup endpoint only gives basic data.
+    container.querySelectorAll('.tsdb-lineup-row-clickable').forEach(row => {
+      const open = async () => {
+        const pid = row.getAttribute('data-tsdb-player-id');
+        if (!pid) return;
+        // Start with whatever we already have so the modal opens instantly
+        const stub = (window.__tsdbLineupCache || {})[pid] || {};
+        openPlayerModal(stub);
+        // Then enrich in the background
+        const rich = await loadPlayerProfile(pid);
+        if (rich) openPlayerModal({ ...stub, ...rich });
+      };
+      row.addEventListener('click', open);
+      row.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+      });
+    });
+  }
+
+  // Load a richer player profile (bio, birthdate, height, socials) by ID.
+  // Cached forever in localStorage (player profile data is essentially static).
+  async function loadPlayerProfile(idPlayer) {
+    if (!idPlayer) return null;
+    const cacheKey = `tsdb_player_${idPlayer}`;
+    try {
+      const c = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+      if (c && c.data) return c.data;
+    } catch(e) {}
+    try {
+      const r = await fetch(`${TSDB_V1}/lookupplayer.php?id=${idPlayer}`);
+      const d = await r.json();
+      const player = (d.players || [])[0] || null;
+      if (player) {
+        try { localStorage.setItem(cacheKey, JSON.stringify({ts: Date.now(), data: player})); } catch(e) {}
+      }
+      return player;
+    } catch(e) {
+      console.warn('[TSDB] player profile fetch failed', e);
+      return null;
+    }
   }
 
   function renderStatsBlock(container, matchIdx, stats) {
     const m = MATCHES[matchIdx];
     if (!m) { container.style.display='none'; return; }
-    if (!stats || !stats.length) { container.style.display = 'none'; return; }
+    const hasScore = m[10] !== null && m[11] !== null;
+
+    if (!stats || !stats.length) {
+      if (hasScore) {
+        container.innerHTML = `
+          <div class="drawer-section-title"><i class="ph ph-chart-bar"></i> Match Stats</div>
+          <div class="tsdb-empty">Statistics not yet published.</div>`;
+        container.style.display = '';
+      } else {
+        container.style.display = 'none';
+      }
+      return;
+    }
+    const homeColor = (typeof teamCol === 'function') ? teamCol(m[5]) : '#2d6a4f';
+    const awayColor = (typeof teamCol === 'function') ? teamCol(m[6]) : '#e8541a';
 
     const rows = stats.map(s => {
       const label = s.strStat || '';
-      const h = s.intHome !== null && s.intHome !== '' ? s.intHome : '–';
-      const a = s.intAway !== null && s.intAway !== '' ? s.intAway : '–';
-      // Bar fill — try to normalize percentages
-      const hn = parseFloat(h), an = parseFloat(a);
-      const total = (isFinite(hn) && isFinite(an)) ? (hn + an) : 0;
-      const hPct = total > 0 ? Math.round(hn / total * 100) : 50;
+      const rawH = s.intHome, rawA = s.intAway;
+      const hDisplay = (rawH !== null && rawH !== '' && rawH !== undefined) ? rawH : '–';
+      const aDisplay = (rawA !== null && rawA !== '' && rawA !== undefined) ? rawA : '–';
+      const hn = parseFloat(hDisplay), an = parseFloat(aDisplay);
+      const safeH = isFinite(hn) ? hn : 0;
+      const safeA = isFinite(an) ? an : 0;
+      const total = safeH + safeA;
+      const hPct = total > 0 ? (safeH / total * 100) : 0;
+      const aPct = total > 0 ? (safeA / total * 100) : 0;
       return `<div class="tsdb-stat-row">
-        <span class="tsdb-stat-h">${h}</span>
-        <div class="tsdb-stat-mid">
-          <div class="tsdb-stat-label">${label}</div>
-          <div class="tsdb-stat-bar"><div class="tsdb-stat-bar-h" style="width:${hPct}%"></div></div>
+        <div class="tsdb-stat-vals">
+          <span class="tsdb-stat-val">${hDisplay}</span>
+          <span class="tsdb-stat-label">${label}</span>
+          <span class="tsdb-stat-val">${aDisplay}</span>
         </div>
-        <span class="tsdb-stat-a">${a}</span>
+        <div class="tsdb-stat-bars">
+          <div class="tsdb-stat-bar-side tsdb-stat-bar-home">
+            <div class="tsdb-stat-bar-fill" style="width:${hPct}%; background:${homeColor}"></div>
+          </div>
+          <div class="tsdb-stat-bar-side tsdb-stat-bar-away">
+            <div class="tsdb-stat-bar-fill" style="width:${aPct}%; background:${awayColor}"></div>
+          </div>
+        </div>
       </div>`;
     }).join('');
 
@@ -10160,8 +10513,8 @@ drawChampionRibbon();
       originalRender(matchIdx, report);
       const m = MATCHES[matchIdx];
       if (!m) return;
-      const hasScore = m[10] !== null && m[11] !== null;
-      if (!hasScore) return; // only inject for finished matches
+      // Inject lineup + stats blocks for every match — endpoints return null if no data
+      // and the blocks hide themselves silently.
 
       document.querySelectorAll(
         `[data-match-report-block][data-match-idx="${matchIdx}"]`
@@ -10201,6 +10554,55 @@ drawChampionRibbon();
             .catch(() => { statsBlock.style.display = 'none'; });
         }
       });
+
+      // Wire player clicks on goal/card event rows. Uses a fuzzy name→idPlayer
+      // map combining timeline IDs (when API has them) + squad caches for both
+      // teams (covers manual MATCH_REPORTS entries too once the team squads load).
+      const bindEventClicks = () => {
+        const idMap = getPlayerIdMap(matchIdx);
+        const reportSections = document.querySelectorAll(
+          `.js-match-report-section[data-match-idx="${matchIdx}"]`
+        );
+        reportSections.forEach(section => {
+          section.querySelectorAll('.mr-player, .mr-assist').forEach(span => {
+            if (span.classList.contains('mr-player-bound')) return;
+            // Strip decoration: leading arrow "↳", whitespace; trailing " (OG)"
+            let name = (span.textContent || '')
+              .replace(/^[\s↳\(\)]+/, '')
+              .replace(/\s+\(OG\)$/i, '')
+              .trim();
+            const pid = fuzzyFindId(name, idMap);
+            if (!pid) return;
+            span.classList.add('mr-player-bound', 'mr-player-clickable');
+            span.setAttribute('data-tsdb-player-id', pid);
+            span.setAttribute('role', 'button');
+            span.setAttribute('tabindex', '0');
+            const open = async () => {
+              const stub = { strPlayer: name, idPlayer: pid };
+              openPlayerModal(stub);
+              const rich = await loadPlayerProfile(pid);
+              if (rich) openPlayerModal({ ...stub, ...rich });
+            };
+            span.addEventListener('click', open);
+            span.addEventListener('keydown', e => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+            });
+          });
+        });
+      };
+
+      // Bind whatever's already cached so existing clicks light up instantly
+      bindEventClicks();
+
+      // ALWAYS trigger background loads (they're cached per team for 7 days, so
+      // repeat calls are nearly free). This guarantees BOTH teams' squads get
+      // loaded — fixes the "only one team is clickable" bug where the bound
+      // count being > 0 short-circuited the background fetch for the other.
+      Promise.all([
+        loadEventPlayerIds(matchIdx),
+        loadTeamSquad(m[5]),
+        loadTeamSquad(m[6])
+      ]).then(() => bindEventClicks());
     };
   }
 
@@ -10250,7 +10652,270 @@ drawChampionRibbon();
   const teamPageObserver = new MutationObserver(() => checkTeamPage());
   teamPageObserver.observe(document.body, { childList: true, subtree: true });
 
-  // ─── Live score on dashboard ───────────────────────────────────────────
+  // ─── Squad Gallery (lookup_all_players) ─────────────────────────────────
+  // Reliable for major national teams — pulls full ~26-player roster with
+  // photos, jersey numbers, positions. Cached per team in localStorage.
+
+  let teamIdByName = null;
+  function buildTeamIdMap() {
+    if (teamIdByName) return teamIdByName;
+    teamIdByName = {};
+    for (const e of seasonEvents) {
+      if (e.strHomeTeam && e.idHomeTeam) teamIdByName[norm(e.strHomeTeam)] = e.idHomeTeam;
+      if (e.strAwayTeam && e.idAwayTeam) teamIdByName[norm(e.strAwayTeam)] = e.idAwayTeam;
+    }
+    return teamIdByName;
+  }
+
+  function resolveTeamId(teamName) {
+    const map = buildTeamIdMap();
+    const target = norm(nameToTsdb(teamName));
+    if (map[target]) return map[target];
+    // Loose match: any cached team key sharing 5+ chars with target
+    for (const k of Object.keys(map)) {
+      if (k === target) return map[k];
+      if (k.includes(target) || target.includes(k)) return map[k];
+      if (target.length >= 5 && k.length >= 5) {
+        for (let i = 0; i <= target.length - 5; i++) {
+          if (k.includes(target.substring(i, i + 5))) return map[k];
+        }
+      }
+    }
+    return null;
+  }
+
+  async function loadTeamSquad(teamName) {
+    // Persistent cache (7 days) — squad data doesn't change mid-tournament
+    try {
+      const c = JSON.parse(localStorage.getItem(`tsdb_squad_${teamName}`) || 'null');
+      if (c && Date.now() - c.ts < 7 * 24 * 3600 * 1000) return c.data;
+    } catch(e) {}
+
+    await loadSeason();
+    const teamId = resolveTeamId(teamName);
+    if (!teamId) {
+      console.warn(`[TSDB] no team ID found for "${teamName}". Cached teams:`, Object.keys(buildTeamIdMap()));
+      return null;
+    }
+
+    try {
+      const r = await fetch(`${TSDB_V1}/lookup_all_players.php?id=${teamId}`);
+      const d = await r.json();
+      const players = d.player || [];
+      console.log(`[TSDB] squad ${teamName} (team ${teamId}): ${players.length} players`);
+      if (!players.length) return null;
+      try {
+        localStorage.setItem(`tsdb_squad_${teamName}`, JSON.stringify({ts: Date.now(), data: players}));
+      } catch(e) {}
+      return players;
+    } catch(e) {
+      console.warn(`[TSDB] squad fetch failed for ${teamName}`, e);
+      return null;
+    }
+  }
+
+  function renderTeamSquadGallery(teamName, players) {
+    // Find the existing "2026 Squad" section so we can insert after it
+    const aiSquad = document.getElementById('ai-squad');
+    if (!aiSquad) return;
+    const squadSection = aiSquad.closest('div');
+    if (!squadSection) return;
+
+    // Reuse our injected section if it exists
+    let gallery = document.getElementById('tsdb-squad-gallery');
+    if (!gallery) {
+      gallery = document.createElement('div');
+      gallery.id = 'tsdb-squad-gallery';
+      squadSection.after(gallery);
+    }
+
+    if (!players || !players.length) {
+      gallery.innerHTML = '';
+      gallery.style.display = 'none';
+      return;
+    }
+
+    // Dedupe by idPlayer, filter for Soccer
+    const seen = new Set();
+    const filtered = players.filter(p => {
+      if (!p.idPlayer || seen.has(p.idPlayer)) return false;
+      seen.add(p.idPlayer);
+      return !p.strSport || p.strSport === 'Soccer';
+    });
+
+    // Sort by jersey number (unnumbered last), then by name
+    filtered.sort((a, b) => {
+      const an = parseInt(a.intSquadNumber);
+      const bn = parseInt(b.intSquadNumber);
+      const av = isFinite(an) ? an : 999;
+      const bv = isFinite(bn) ? bn : 999;
+      if (av !== bv) return av - bv;
+      return (a.strPlayer || '').localeCompare(b.strPlayer || '');
+    });
+
+    // Cache the player array on window so the modal handler can look up by index
+    window.__tsdbSquadCache = window.__tsdbSquadCache || {};
+    window.__tsdbSquadCache[teamName] = filtered;
+
+    const cards = filtered.map((p, idx) => {
+      const photo = p.strThumb || p.strCutout || p.strRender || '';
+      const photoHtml = photo
+        ? `<img class="tsdb-pcard-photo" src="${photo}" alt="${p.strPlayer || ''}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'tsdb-pcard-photo tsdb-pcard-noimg',innerHTML:'<i class=&quot;ph ph-user&quot;></i>'}))">`
+        : `<div class="tsdb-pcard-photo tsdb-pcard-noimg"><i class="ph ph-user"></i></div>`;
+      const numHtml = p.intSquadNumber ? `<div class="tsdb-pcard-num">${p.intSquadNumber}</div>` : '';
+      return `<div class="tsdb-pcard tsdb-pcard-clickable" data-tsdb-team="${teamName}" data-tsdb-idx="${idx}" role="button" tabindex="0">
+        ${photoHtml}
+        ${numHtml}
+        <div class="tsdb-pcard-name">${p.strPlayer || '?'}</div>
+        <div class="tsdb-pcard-pos">${p.strPosition || ''}</div>
+      </div>`;
+    }).join('');
+
+    gallery.innerHTML = `
+      <div class="team-section-title"><i class="ph ph-identification-card"></i> Squad <span style="font-size:11px;font-weight:500;color:var(--muted,#7c8494);margin-left:6px">${filtered.length} players · click any player</span></div>
+      <div class="tsdb-squad-grid">${cards}</div>`;
+    gallery.style.display = '';
+
+    // Hide the AI-generated "2026 Squad" section since the gallery covers it
+    // with photos + click-for-bio. The AI commentary was helpful but adds
+    // a redundant block above the gallery.
+    if (squadSection && squadSection !== gallery) {
+      squadSection.style.display = 'none';
+    }
+
+    // Wire click + keyboard handlers
+    gallery.querySelectorAll('.tsdb-pcard-clickable').forEach(card => {
+      const open = () => {
+        const t = card.getAttribute('data-tsdb-team');
+        const i = parseInt(card.getAttribute('data-tsdb-idx'));
+        const player = (window.__tsdbSquadCache[t] || [])[i];
+        if (player) openPlayerModal(player);
+      };
+      card.addEventListener('click', open);
+      card.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+      });
+    });
+  }
+
+  // ─── Player profile modal ────────────────────────────────────────────────
+  function ensurePlayerModal() {
+    let modal = document.getElementById('tsdb-player-modal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'tsdb-player-modal';
+    modal.className = 'tsdb-pmodal-bg';
+    modal.style.display = 'none';
+    modal.innerHTML = `<div class="tsdb-pmodal" role="dialog" aria-modal="true"></div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => {
+      if (e.target === modal) closePlayerModal();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && modal.style.display !== 'none') closePlayerModal();
+    });
+    return modal;
+  }
+
+  function closePlayerModal() {
+    const modal = document.getElementById('tsdb-player-modal');
+    if (modal) { modal.style.display = 'none'; document.body.style.overflow = ''; }
+  }
+  window.closePlayerModal = closePlayerModal;
+
+  function ageFromDate(dob) {
+    if (!dob) return null;
+    const d = new Date(dob);
+    if (isNaN(d)) return null;
+    const now = new Date();
+    let age = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    return age;
+  }
+
+  function openPlayerModal(p) {
+    const modal = ensurePlayerModal();
+    const inner = modal.querySelector('.tsdb-pmodal');
+    if (!inner) return;
+
+    const photo = p.strCutout || p.strThumb || p.strRender || '';
+    const photoHtml = photo
+      ? `<img class="tsdb-pmodal-photo" src="${photo}" alt="${p.strPlayer || ''}" onerror="this.style.display='none'">`
+      : `<div class="tsdb-pmodal-photo tsdb-pcard-noimg"><i class="ph ph-user"></i></div>`;
+
+    const age = ageFromDate(p.dateBorn);
+    const stats = [];
+    if (p.strPosition)     stats.push(['Position', p.strPosition]);
+    if (p.intSquadNumber)  stats.push(['Jersey', '#' + p.intSquadNumber]);
+    if (p.strTeam)         stats.push(['Club', p.strTeam]);
+    if (p.strNationality)  stats.push(['Nationality', p.strNationality]);
+    if (p.dateBorn) {
+      const d = new Date(p.dateBorn);
+      const dateStr = isNaN(d) ? p.dateBorn : d.toLocaleDateString('en-AU', {day:'numeric', month:'short', year:'numeric'});
+      stats.push(['Born', dateStr + (age != null ? ` (${age})` : '')]);
+    }
+    if (p.strBirthLocation) stats.push(['Birthplace', p.strBirthLocation]);
+    if (p.strHeight)        stats.push(['Height', p.strHeight]);
+    if (p.strWeight)        stats.push(['Weight', p.strWeight]);
+    if (p.strSide)          stats.push(['Foot', p.strSide]);
+
+    const statsHtml = stats.map(([k, v]) =>
+      `<div class="tsdb-pmodal-stat"><div class="tsdb-pmodal-statlbl">${k}</div><div class="tsdb-pmodal-statval">${v}</div></div>`
+    ).join('');
+
+    // Bio: trim to a sensible length
+    let bio = (p.strDescriptionEN || '').trim();
+    if (bio.length > 1200) bio = bio.substring(0, 1180).replace(/\s+\S*$/, '') + '…';
+    const bioHtml = bio ? `<div class="tsdb-pmodal-bio">${bio.replace(/\n+/g, '</p><p>').replace(/^/, '<p>').replace(/$/, '</p>')}</div>` : '';
+
+    // Social links
+    const socials = [];
+    if (p.strInstagram) socials.push(['instagram-logo', p.strInstagram.startsWith('http') ? p.strInstagram : 'https://' + p.strInstagram]);
+    if (p.strTwitter)   socials.push(['x-logo',         p.strTwitter.startsWith('http')   ? p.strTwitter   : 'https://' + p.strTwitter]);
+    if (p.strFacebook)  socials.push(['facebook-logo',  p.strFacebook.startsWith('http')  ? p.strFacebook  : 'https://' + p.strFacebook]);
+    if (p.strYoutube)   socials.push(['youtube-logo',   p.strYoutube.startsWith('http')   ? p.strYoutube   : 'https://' + p.strYoutube]);
+    const socialHtml = socials.length
+      ? `<div class="tsdb-pmodal-social">${socials.map(([icon, url]) => `<a href="${url}" target="_blank" rel="noopener noreferrer"><i class="ph ph-${icon}"></i></a>`).join('')}</div>`
+      : '';
+
+    inner.innerHTML = `
+      <button class="tsdb-pmodal-close" onclick="closePlayerModal()" aria-label="Close"><i class="ph ph-x"></i></button>
+      <div class="tsdb-pmodal-hero">
+        ${photoHtml}
+        ${p.intSquadNumber ? `<div class="tsdb-pmodal-num">${p.intSquadNumber}</div>` : ''}
+      </div>
+      <div class="tsdb-pmodal-body">
+        <h2 class="tsdb-pmodal-name">${p.strPlayer || '?'}</h2>
+        ${p.strPosition ? `<div class="tsdb-pmodal-subtitle">${p.strPosition}${p.strTeam ? ' · ' + p.strTeam : ''}</div>` : ''}
+        ${statsHtml ? `<div class="tsdb-pmodal-stats">${statsHtml}</div>` : ''}
+        ${bioHtml}
+        ${socialHtml}
+      </div>
+    `;
+
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    // Scroll modal to top on open
+    const m = modal.querySelector('.tsdb-pmodal');
+    if (m) m.scrollTop = 0;
+  }
+
+  // Hook into renderTeamData to also trigger our gallery fetch
+  if (typeof window.renderTeamData === 'function') {
+    const originalRenderTeam = window.renderTeamData;
+    window.renderTeamData = function(data) {
+      originalRenderTeam(data);
+      // Find current team from the page hero
+      setTimeout(() => {
+        const heroH2 = document.querySelector('.team-hero-info h2');
+        if (!heroH2) return;
+        const teamName = heroH2.textContent.trim();
+        loadTeamSquad(teamName).then(players => renderTeamSquadGallery(teamName, players));
+      }, 50);
+    };
+  }
+
   // Uses V2 livescore endpoint (premium-only — your key has access).
   // Polls every 30s while any match is in its kickoff window.
 
@@ -10273,43 +10938,104 @@ drawChampionRibbon();
     const cards = document.querySelectorAll('.db-live-card');
     if (!cards.length) return false;
 
+    // First pass: paint whatever scores we already have from MATCHES (filled by syncScores)
+    // so the banner stops saying "LIVE NOW" with no number even if V2 hasn't responded yet.
+    cards.forEach(card => paintCardFromMatches(card));
+
+    // Second pass: try V2 livescore for fresher in-match data + elapsed minute
     const events = await fetchLivescores();
-    cards.forEach(card => {
-      const oc = card.getAttribute('onclick') || '';
-      const mm = oc.match(/jumpToFixture\((\d+)\)/);
-      if (!mm) return;
-      const idx = parseInt(mm[1]);
-      const match = MATCHES[idx];
-      if (!match) return;
-
-      const myHomeN = norm(nameToTsdb(match[5]));
-      const myAwayN = norm(nameToTsdb(match[6]));
-      const ev = events.find(e => {
-        const eh = norm(e.strHomeTeam || '');
-        const ea = norm(e.strAwayTeam || '');
-        const matchPair = (a, b, x, y) =>
-          (a === x || a.startsWith(x) || x.startsWith(a)) &&
-          (b === y || b.startsWith(y) || y.startsWith(b));
-        return matchPair(eh, ea, myHomeN, myAwayN) ||
-               matchPair(eh, ea, myAwayN, myHomeN);
-      });
-      if (!ev) return;
-
-      const hs = (ev.intHomeScore !== null && ev.intHomeScore !== '') ? ev.intHomeScore : null;
-      const as = (ev.intAwayScore !== null && ev.intAwayScore !== '') ? ev.intAwayScore : null;
-      const apiHomeN = norm(ev.strHomeTeam || '');
-      const flipped = !(apiHomeN === myHomeN || apiHomeN.startsWith(myHomeN) || myHomeN.startsWith(apiHomeN));
-      const displayH = hs !== null ? (flipped ? as : hs) : null;
-      const displayA = as !== null ? (flipped ? hs : as) : null;
-      const prog = ev.strProgress || ev.strStatus || '';
-      const progLabel = prog && prog.toLowerCase() !== 'live' ? `${prog}'` : 'LIVE';
-
-      const scoreSpan = card.querySelector('.db-live-score');
-      if (scoreSpan && displayH !== null && displayA !== null) {
-        scoreSpan.innerHTML = `<span class="db-live-score-live"><i class="ph-fill ph-record"></i> <span class="tsdb-live-num">${displayH}–${displayA}</span> <span class="tsdb-live-min">${progLabel}</span></span>`;
-      }
-    });
+    if (!events.length) {
+      console.log('[TSDB] livescore returned 0 events (no live games or auth issue)');
+      return false;
+    }
+    cards.forEach(card => paintCardFromLivescore(card, events));
     return true;
+  }
+
+  function paintCardFromMatches(card) {
+    const oc = card.getAttribute('onclick') || '';
+    const mm = oc.match(/jumpToFixture\((\d+)\)/);
+    if (!mm) return;
+    const idx = parseInt(mm[1]);
+    const match = MATCHES[idx];
+    if (!match) return;
+    const hs = match[10], as = match[11];
+    if (hs === null || as === null) return;
+    const scoreSpan = card.querySelector('.db-live-score');
+    if (!scoreSpan) return;
+    // Don't overwrite a richer V2-painted score that already has a minute number
+    if (scoreSpan.querySelector('.tsdb-live-min')) return;
+    scoreSpan.innerHTML = `<span class="db-live-score-live"><i class="ph-fill ph-record"></i> <span class="tsdb-live-num">${hs}–${as}</span> <span class="tsdb-live-min">LIVE</span></span>`;
+  }
+
+  function paintCardFromLivescore(card, events) {
+    const oc = card.getAttribute('onclick') || '';
+    const mm = oc.match(/jumpToFixture\((\d+)\)/);
+    if (!mm) return;
+    const idx = parseInt(mm[1]);
+    const match = MATCHES[idx];
+    if (!match) return;
+
+    const myHomeN = norm(nameToTsdb(match[5]));
+    const myAwayN = norm(nameToTsdb(match[6]));
+    const ev = events.find(e => {
+      const eh = norm(e.strHomeTeam || '');
+      const ea = norm(e.strAwayTeam || '');
+      const pairMatch = (a, b, x, y) =>
+        (a === x || a.startsWith(x) || x.startsWith(a)) &&
+        (b === y || b.startsWith(y) || y.startsWith(b));
+      return pairMatch(eh, ea, myHomeN, myAwayN) ||
+             pairMatch(eh, ea, myAwayN, myHomeN);
+    });
+    if (!ev) return;
+
+    const hs = (ev.intHomeScore !== null && ev.intHomeScore !== '') ? ev.intHomeScore : null;
+    const as = (ev.intAwayScore !== null && ev.intAwayScore !== '') ? ev.intAwayScore : null;
+    if (hs === null || as === null) return;
+
+    const apiHomeN = norm(ev.strHomeTeam || '');
+    const flipped = !(apiHomeN === myHomeN || apiHomeN.startsWith(myHomeN) || myHomeN.startsWith(apiHomeN));
+    const displayH = flipped ? as : hs;
+    const displayA = flipped ? hs : as;
+
+    // Interpret status. TheSportsDB status values vary; cover the common ones.
+    const status = (ev.strStatus || ev.strProgress || '').toString().trim();
+    const statusLower = status.toLowerCase();
+    let label, iconHtml;
+    if (statusLower === 'ft' || statusLower === 'finished' || statusLower === 'full time') {
+      label = 'FT';
+      iconHtml = '';
+    } else if (statusLower === 'aet' || statusLower.includes('after extra')) {
+      label = 'AET';
+      iconHtml = '';
+    } else if (statusLower === 'pen' || statusLower.includes('penalt')) {
+      label = `Pens ${displayH}–${displayA}`;
+      iconHtml = '';
+    } else if (statusLower === 'ht' || statusLower === 'half time') {
+      label = 'HT';
+      iconHtml = '<i class="ph-fill ph-record"></i> ';
+    } else if (statusLower === 'live' || statusLower === '' || statusLower === 'ns') {
+      label = 'LIVE';
+      iconHtml = '<i class="ph-fill ph-record"></i> ';
+    } else if (/^\d+$/.test(status)) {
+      // Numeric minute like "67" or "90+3"
+      label = `${status}'`;
+      iconHtml = '<i class="ph-fill ph-record"></i> ';
+    } else {
+      label = status;
+      iconHtml = '<i class="ph-fill ph-record"></i> ';
+    }
+
+    // Update MATCHES so calendar/fixtures get the latest score
+    if (match[10] !== parseInt(displayH) || match[11] !== parseInt(displayA)) {
+      match[10] = parseInt(displayH);
+      match[11] = parseInt(displayA);
+    }
+
+    const scoreSpan = card.querySelector('.db-live-score');
+    if (scoreSpan) {
+      scoreSpan.innerHTML = `<span class="db-live-score-live">${iconHtml}<span class="tsdb-live-num">${displayH}–${displayA}</span> <span class="tsdb-live-min">${label}</span></span>`;
+    }
   }
 
   function liveBannerTick() {
@@ -10391,6 +11117,20 @@ drawChampionRibbon();
   display: flex; align-items: center; gap: 8px;
   padding: 3px 0; line-height: 1.3;
 }
+.tsdb-lineup-row-clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  margin: 0 -6px;
+  padding-left: 6px; padding-right: 6px;
+  transition: background .12s;
+}
+.tsdb-lineup-row-clickable:hover {
+  background: var(--surface2, #eef0f3);
+}
+.tsdb-lineup-row-clickable:focus-visible {
+  outline: 2px solid var(--accent, #e8541a);
+  outline-offset: 1px;
+}
 .tsdb-lineup-num {
   font-weight: 700; color: var(--accent, #e8541a);
   min-width: 22px; font-size: 11px;
@@ -10411,30 +11151,302 @@ drawChampionRibbon();
   .tsdb-lineups { grid-template-columns: 1fr; gap: 14px; }
 }
 
-/* Stats */
+/* Stats — tornado chart (bars extend outward from the center) */
 .tsdb-stat-row {
-  display: grid; grid-template-columns: 40px 1fr 40px;
-  align-items: center; gap: 12px;
-  padding: 6px 0;
-  font-size: 12px;
+  padding: 10px 0;
 }
-.tsdb-stat-h { text-align: right; font-weight: 700; color: var(--ink, #16181d); }
-.tsdb-stat-a { text-align: left;  font-weight: 700; color: var(--ink, #16181d); }
-.tsdb-stat-mid { display: flex; flex-direction: column; gap: 4px; }
+.tsdb-stat-row + .tsdb-stat-row {
+  border-top: 1px solid var(--border, #e2e5ea);
+}
+.tsdb-stat-vals {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.tsdb-stat-val {
+  font-weight: 700; color: var(--ink, #16181d); min-width: 32px;
+  font-variant-numeric: tabular-nums;
+}
+.tsdb-stat-val:first-child { text-align: left; }
+.tsdb-stat-val:last-child  { text-align: right; }
 .tsdb-stat-label {
-  text-align: center;
-  font-size: 10px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: .05em;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em;
   color: var(--muted, #7c8494);
+  flex: 1; text-align: center; padding: 0 10px;
 }
-.tsdb-stat-bar {
-  height: 3px; border-radius: 2px;
+.tsdb-stat-bars {
+  display: grid; grid-template-columns: 1fr 1fr;
+  height: 5px; gap: 3px;
+}
+.tsdb-stat-bar-side {
   background: var(--surface2, #eef0f3);
+  border-radius: 2px;
   overflow: hidden;
+  display: flex;
 }
-.tsdb-stat-bar-h {
-  height: 100%; background: var(--accent, #e8541a);
-  transition: width .3s ease;
+.tsdb-stat-bar-home { justify-content: flex-end; }
+.tsdb-stat-bar-away { justify-content: flex-start; }
+.tsdb-stat-bar-home .tsdb-stat-bar-fill,
+.tsdb-stat-bar-away .tsdb-stat-bar-fill {
+  height: 100%;
+  transition: width .4s ease;
+  /* background colour is set inline per match from TEAM_COLORS */
+}
+
+/* Squad Gallery — player photos on team pages (from lookup_all_players) */
+#tsdb-squad-gallery {
+  margin-top: 24px;
+}
+.tsdb-squad-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.tsdb-pcard {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e5ea);
+  border-radius: 8px;
+  padding: 12px 8px 10px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  transition: transform .15s, box-shadow .15s;
+}
+.tsdb-pcard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+}
+.tsdb-pcard-photo {
+  width: 70px; height: 70px;
+  object-fit: cover;
+  border-radius: 50%;
+  margin: 0 auto 8px;
+  display: block;
+  background: var(--surface2, #eef0f3);
+}
+.tsdb-pcard-noimg {
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted, #7c8494);
+  font-size: 32px;
+}
+.tsdb-pcard-num {
+  position: absolute;
+  top: 6px; right: 6px;
+  min-width: 22px; height: 22px;
+  padding: 0 5px;
+  background: var(--accent, #e8541a);
+  color: white;
+  border-radius: 11px;
+  font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+.tsdb-pcard-name {
+  font-size: 12px; font-weight: 600;
+  color: var(--ink, #16181d);
+  margin-bottom: 2px;
+  line-height: 1.25;
+}
+.tsdb-pcard-pos {
+  font-size: 10px;
+  color: var(--muted, #7c8494);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.tsdb-pcard-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+.tsdb-pcard-clickable:focus-visible {
+  outline: 2px solid var(--accent, #e8541a);
+  outline-offset: 2px;
+}
+
+/* Player detail modal */
+.tsdb-pmodal-bg {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, .55);
+  backdrop-filter: blur(3px);
+  z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  animation: tsdbModalFadeIn .18s ease;
+}
+@keyframes tsdbModalFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.tsdb-pmodal {
+  background: var(--surface, #fff);
+  color: var(--ink, #16181d);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  animation: tsdbModalSlideIn .22s cubic-bezier(.16,.84,.32,1);
+}
+@keyframes tsdbModalSlideIn {
+  from { opacity: 0; transform: translateY(20px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.tsdb-pmodal-close {
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.08);
+  border: none;
+  color: var(--ink, #16181d);
+  font-size: 18px;
+  cursor: pointer;
+  z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+}
+.tsdb-pmodal-close:hover { background: rgba(0,0,0,.16); }
+
+.tsdb-pmodal-hero {
+  background: linear-gradient(135deg, var(--surface2, #eef0f3) 0%, var(--surface, #fff) 100%);
+  padding: 28px 20px 20px;
+  text-align: center;
+  position: relative;
+  border-bottom: 1px solid var(--border, #e2e5ea);
+}
+.tsdb-pmodal-photo {
+  width: 140px; height: 140px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface, #fff);
+  border: 4px solid var(--surface, #fff);
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  margin: 0 auto;
+  display: block;
+}
+.tsdb-pmodal-num {
+  position: absolute;
+  top: 28px;
+  right: calc(50% - 90px);
+  min-width: 36px; height: 36px;
+  padding: 0 8px;
+  border-radius: 18px;
+  background: var(--accent, #e8541a);
+  color: #fff;
+  font-weight: 800; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+}
+
+.tsdb-pmodal-body {
+  padding: 20px 24px 24px;
+}
+.tsdb-pmodal-name {
+  font-size: 22px; font-weight: 800;
+  margin: 0 0 4px;
+  color: var(--ink, #16181d);
+  line-height: 1.2;
+}
+.tsdb-pmodal-subtitle {
+  font-size: 13px;
+  color: var(--muted, #7c8494);
+  margin-bottom: 18px;
+}
+.tsdb-pmodal-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 16px;
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border, #e2e5ea);
+}
+.tsdb-pmodal-stat {
+  font-size: 13px;
+}
+.tsdb-pmodal-statlbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted, #7c8494);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.tsdb-pmodal-statval {
+  color: var(--ink, #16181d);
+  font-weight: 600;
+}
+.tsdb-pmodal-bio {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink, #16181d);
+}
+.tsdb-pmodal-bio p { margin: 0 0 10px; }
+.tsdb-pmodal-bio p:last-child { margin-bottom: 0; }
+.tsdb-pmodal-social {
+  display: flex; gap: 10px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border, #e2e5ea);
+}
+.tsdb-pmodal-social a {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--surface2, #eef0f3);
+  color: var(--ink, #16181d);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  text-decoration: none;
+  transition: background .15s, color .15s;
+}
+.tsdb-pmodal-social a:hover {
+  background: var(--accent, #e8541a);
+  color: #fff;
+}
+
+/* Empty state shown when a finished match has no lineup/stats in TheSportsDB */
+.tsdb-empty {
+  font-size: 12px;
+  color: var(--muted, #7c8494);
+  font-style: italic;
+  padding: 10px 12px;
+  background: var(--surface2, #eef0f3);
+  border-radius: 6px;
+  line-height: 1.5;
+}
+
+/* Empty state for Goals & Cards section */
+.mr-empty {
+  font-size: 12px;
+  color: var(--muted, #7c8494);
+  font-style: italic;
+  padding: 8px 0;
+  line-height: 1.5;
+}
+
+/* LIVE pill in the drawer header — pulsing red */
+.drawer-vs-wrap {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 6px;
+}
+.drawer-live-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 800;
+  letter-spacing: .08em;
+  color: #fff;
+  background: #dc2626;
+  padding: 3px 9px 3px 7px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  animation: drawerLivePulse 1.4s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(220, 38, 38, .45);
+}
+.drawer-live-pill i { font-size: 9px; }
+@keyframes drawerLivePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, .45); }
+  50%      { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
 }
 
 /* Team crest */
