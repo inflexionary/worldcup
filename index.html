@@ -4897,9 +4897,9 @@ async function fetchMatchInfo(matchIdx, m, grpLabel, isKO) {
     .map(p => `${p.name} (${p.club}) – ${p.note}`).join('. ');
 
   const data = {
-    preview: isTBD
-      ? `This ${grpLabel} match will be confirmed after the group stage concludes.`
-      : `${m[5]}: ${d1.wc_story || d1.country_blurb || ''} ${m[6]}: ${d2.wc_story || d2.country_blurb || ''}`,
+    preview: isTBD ? `This ${grpLabel} match will be confirmed after the group stage concludes.` : '',
+    preview1: isTBD ? '' : (d1.wc_story || d1.country_blurb || ''),
+    preview2: isTBD ? '' : (d2.wc_story || d2.country_blurb || ''),
     stadium_name: m[8],
     stadium_facts: `Kick-off ${fmtTime(matchStartUTC(m))} AEST · ${grpLabel}`,
     h2h: [],
@@ -5448,7 +5448,12 @@ function buildDrawerHTML(matchIdx, d) {
     const _reason = _rating>=3 ? mustWatchReason(m[5],m[6]) : watchReason2(m[5],m[6]);
     html+=`<div class="drawer-mustwatch-banner ${_rating>=3?'mw-hot':'mw-warm'}"><span class="drawer-mw-flames">${ratingIcon(_rating)}</span><span class="drawer-mw-reason">${_reason}</span></div>`;
   }
-  if(d.preview) html+=`<div><div class="drawer-section-title"><i class="ph ph-notepad"></i> Match Preview</div><div class="drawer-ai"><p>${d.preview}</p></div></div>`;
+  // Match Preview — labelled paragraph per team so both stories are visible.
+  if(isTBD && d.preview) {
+    html+=`<div><div class="drawer-section-title"><i class="ph ph-notepad"></i> Match Preview</div><div class="drawer-ai"><p>${d.preview}</p></div></div>`;
+  } else if(d.preview1 || d.preview2) {
+    html+=`<div><div class="drawer-section-title"><i class="ph ph-notepad"></i> Match Preview</div><div class="drawer-ai">${d.preview1?`<p><strong>${m[5]}:</strong> ${d.preview1}</p>`:''}${d.preview2?`<p><strong>${m[6]}:</strong> ${d.preview2}</p>`:''}</div></div>`;
+  }
   if(d.stadium_name||d.stadium_facts) html+=`<div><div class="drawer-section-title"><i class="ph ph-stadium"></i> ${d.stadium_name||m[8]}</div><div class="drawer-ai"><p>${d.stadium_facts||''}</p></div></div>`;
   if(!isTBD&&d.h2h?.length){
     const rows=d.h2h.map(r=>`<div class="h2h-row"><span class="h2h-date">${r.date}</span><span>${r.competition}</span><span class="h2h-score">${r.score}</span><span class="h2h-comp">${r.winner==='Draw'?'Draw':r.winner+' won'}</span></div>`).join('');
