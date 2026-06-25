@@ -921,6 +921,31 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-s
 .db-live-matches{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:16px}
 .db-live-card{background:rgba(255,255,255,.1);border:1px solid rgba(255,0,0,.3);border-radius:8px;padding:14px 20px;cursor:pointer;transition:background .1s;min-width:280px}
 .db-live-card:hover{background:rgba(255,255,255,.18)}
+
+/* Group table + qualification bullets embedded in live / up-next card */
+.lcg-block{margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12)}
+.lcg-section-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.55);margin-bottom:6px}
+.lcg-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:18px;align-items:start}
+@media (max-width: 720px){
+  .lcg-grid{grid-template-columns:1fr;gap:14px}
+}
+.lcg-table{width:100%;border-collapse:collapse;font-size:11px;color:#e5e7eb}
+.lcg-table thead th{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.55);padding:2px 4px;text-align:left;border-bottom:1px solid rgba(255,255,255,.1)}
+.lcg-table tbody td{padding:4px 4px;line-height:1.3}
+.lcg-table tbody tr{border-left:3px solid transparent}
+.lcg-table .lcg-q{border-left-color:#22c55e}
+.lcg-table .lcg-q3{border-left-color:#eab308}
+.lcg-table .lcg-e3{border-left-color:#f97316}
+.lcg-table .lcg-e{border-left-color:rgba(239,68,68,.55)}
+.lcg-table .lcg-pos{font-size:10px;color:rgba(255,255,255,.55);width:14px;padding-left:6px}
+.lcg-table .lcg-team{white-space:nowrap}
+.lcg-table .lcg-n{text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.85)}
+.lcg-table .lcg-pts{font-weight:800;color:#fff}
+
+/* Bullet list — one sentence per team explaining what they need */
+.lcg-bullets{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:7px}
+.lcg-bul{font-size:11px;line-height:1.45;color:rgba(255,255,255,.78)}
+.lcg-bul-name{font-weight:700;color:rgba(255,255,255,.95);margin-right:6px;white-space:nowrap}
 .db-live-teams{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .db-live-team{font-family:'Inter',sans-serif;font-weight:700;font-size:16px;color:white;text-transform:uppercase;flex:1}
 .db-live-team:last-child{text-align:right}
@@ -1123,9 +1148,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-s
 .db-card-next--big{grid-column:1/-1}
 .db-next-match{
   display:flex;align-items:center;gap:14px;
+  flex-wrap:wrap;
   padding:12px 0;border-bottom:1px solid var(--border);
   cursor:pointer;transition:background .1s;
 }
+.db-next-match > .lcg-block{flex-basis:100%;width:100%}
 .db-next-match:last-child{border-bottom:none}
 .db-next-match:hover{background:var(--bg);margin:0 -16px;padding-left:16px;padding-right:16px}
 .db-next-match--big{padding:16px 0}
@@ -5057,6 +5084,346 @@ function ratingIcon(r) {
 //  OVERVIEW DASHBOARD
 // ═══════════════════════════════════════════════════════════════
 
+// Compact group table + best-3rd-of-12 context for the LIVE NOW cards.
+// Only renders for matchday 3 group games (the last round) — earlier rounds
+// don't have qualification stakes worth visualising, and knockout games have
+// no group at all.
+function getMatchdayInGroup(m) {
+  if (!'ABCDEFGHIJKL'.includes(m[7])) return null;
+  const groupMatches = MATCHES.filter(x => x[7] === m[7])
+    .sort((a,b) => matchStartUTC(a) - matchStartUTC(b));
+  const idx = groupMatches.indexOf(m);
+  if (idx < 0) return null;
+  return Math.floor(idx / 2) + 1; // 6 matches per group, 2 per matchday → MD 1/2/3
+}
+
+// Temporarily overwrite scores in MATCHES, recompute standings, restore.
+// Used to enumerate "what does Team X need from here" scenarios.
+function _simulateStandings(grp, scenarios) {
+  const orig = scenarios.map(s => [s.matchIdx, MATCHES[s.matchIdx][10], MATCHES[s.matchIdx][11]]);
+  scenarios.forEach(s => { MATCHES[s.matchIdx][10] = s.hs; MATCHES[s.matchIdx][11] = s.as; });
+  const standings = computeStandings(grp);
+  orig.forEach(([i,h,a]) => { MATCHES[i][10] = h; MATCHES[i][11] = a; });
+  return standings;
+}
+
+// Produce a one-sentence description of what a team needs.
+// Computed from the team's OWN perspective — same answer regardless of which
+// match's card you're reading. Returns null if not applicable.
+//
+// Accuracy: each of the 9 (W/D/L × HW/D/AW) scenarios re-simulates this group
+// AND re-ranks the 3rd-place teams across all 12 groups (using current state
+// for groups not being simulated) to decide whether a 3rd-place finish would
+// clear the best-8 cut. So "3rd-place lottery" only appears when the lottery
+// is actually open; "advance as best 3rd" appears when the team would clear
+// the cut comfortably, etc.
+function describeQualification(team, grp) {
+  const teamMatchIdx = MATCHES.findIndex(mm =>
+    mm[7] === grp && (mm[5] === team || mm[6] === team) &&
+    (mm[10] === null || mm[11] === null)
+  );
+  const otherMatchIdx = MATCHES.findIndex((mm, i) =>
+    i !== teamMatchIdx && mm[7] === grp && (mm[10] === null || mm[11] === null)
+  );
+
+  // Both matches in group decided — actual position is final.
+  if (teamMatchIdx === -1 && otherMatchIdx === -1) {
+    const standings = computeStandings(grp);
+    const pos = standings.findIndex(s => s.team === team);
+    if (pos < 0) return null;
+    if (pos < 2) return 'Through to R32.';
+    if (pos === 2) {
+      const allThirds = 'ABCDEFGHIJKL'.split('').map(g => computeStandings(g)[2]).filter(Boolean);
+      const sortedThirds = allThirds.slice().sort((a,b) => {
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        const gda=a.gf-a.ga, gdb=b.gf-b.ga;
+        if (gdb !== gda) return gdb - gda;
+        return b.gf - a.gf;
+      });
+      const rank = sortedThirds.findIndex(t => t.grp === grp) + 1;
+      return rank > 0 && rank <= 8
+        ? 'Through as one of 8 best 3rd-place teams.'
+        : 'Eliminated — finished 3rd but outside the best-8 cut.';
+    }
+    return 'Eliminated.';
+  }
+
+  // Scenario builders for this match (W/D/L from team's POV) and other match (HW/D/AW)
+  let myResults;
+  if (teamMatchIdx >= 0) {
+    const mm = MATCHES[teamMatchIdx];
+    const isHome = mm[5] === team;
+    const chs = mm[10] ?? 0, cas = mm[11] ?? 0;
+    myResults = isHome ? {
+      W: { hs: Math.max(chs, cas + 1), as: cas },
+      D: { hs: Math.max(chs, cas), as: Math.max(chs, cas) },
+      L: { hs: chs, as: Math.max(cas, chs + 1) }
+    } : {
+      W: { hs: chs, as: Math.max(cas, chs + 1) },
+      D: { hs: Math.max(chs, cas), as: Math.max(chs, cas) },
+      L: { hs: Math.max(chs, cas + 1), as: cas }
+    };
+  } else {
+    myResults = { '_': null };
+  }
+
+  let otherResults;
+  if (otherMatchIdx >= 0) {
+    const mm = MATCHES[otherMatchIdx];
+    const ochs = mm[10] ?? 0, ocas = mm[11] ?? 0;
+    otherResults = {
+      HW: { hs: Math.max(ochs, ocas + 1), as: ocas },
+      D:  { hs: Math.max(ochs, ocas), as: Math.max(ochs, ocas) },
+      AW: { hs: ochs, as: Math.max(ocas, ochs + 1) }
+    };
+  } else {
+    otherResults = { '_': null };
+  }
+
+  const myKeys = Object.keys(myResults);
+  const otherKeys = Object.keys(otherResults);
+
+  // matrix[mk][ok] = { pos: 1..4, advancesAs3rd: boolean }
+  const matrix = {};
+  for (const mk of myKeys) {
+    matrix[mk] = {};
+    for (const ok of otherKeys) {
+      const myR = myResults[mk], otherR = otherResults[ok];
+      const scenarios = [];
+      if (myR && teamMatchIdx >= 0) scenarios.push({ matchIdx: teamMatchIdx, hs: myR.hs, as: myR.as });
+      if (otherR && otherMatchIdx >= 0) scenarios.push({ matchIdx: otherMatchIdx, hs: otherR.hs, as: otherR.as });
+
+      // Apply scenarios temporarily
+      const orig = scenarios.map(s => [s.matchIdx, MATCHES[s.matchIdx][10], MATCHES[s.matchIdx][11]]);
+      scenarios.forEach(s => { MATCHES[s.matchIdx][10] = s.hs; MATCHES[s.matchIdx][11] = s.as; });
+
+      const myStandings = computeStandings(grp);
+      const pos = myStandings.findIndex(s => s.team === team) + 1;
+
+      // Re-rank all 12 groups' 3rd-place teams under this scenario. BUT only
+      // claim "advance as best 3rd" when EVERY other group has finished MD3 —
+      // otherwise we'd be comparing the team's full post-MD3 stats against
+      // 2-games-played stats from groups still to come, which dramatically
+      // overstates the team's standing (a team with -6 GD shouldn't be claimed
+      // to advance just because Group L's third place currently has 0 pts
+      // from 2 games).
+      let advancesAs3rd = false;
+      let pending3rd = false;
+      if (pos === 3) {
+        // Are all 12 groups decided (every team has played 3 games)?
+        const allDecided = 'ABCDEFGHIJKL'.split('').every(g =>
+          computeStandings(g).every(t => t.p === 3));
+        if (allDecided) {
+          const allThirds = 'ABCDEFGHIJKL'.split('')
+            .map(g => computeStandings(g)[2])
+            .filter(Boolean);
+          const sortedThirds = allThirds.slice().sort((a,b) => {
+            if (b.pts !== a.pts) return b.pts - a.pts;
+            const gda=a.gf-a.ga, gdb=b.gf-b.ga;
+            if (gdb !== gda) return gdb - gda;
+            return b.gf - a.gf;
+          });
+          const rank = sortedThirds.findIndex(t => t.grp === grp) + 1;
+          advancesAs3rd = rank > 0 && rank <= 8;
+        } else {
+          // Pre-final-round state — the best-3rd ranking can't be determined
+          // until the remaining groups finish their MD3 games.
+          pending3rd = true;
+        }
+      }
+
+      matrix[mk][ok] = { pos, advancesAs3rd, pending3rd };
+
+      // Restore original scores
+      orig.forEach(([i,h,a]) => { MATCHES[i][10] = h; MATCHES[i][11] = a; });
+    }
+  }
+
+  // Classify an outcome (W / D / L) by its 3 sub-scenarios. Uses best/worst
+  // position + counts of advance / uncertain / out to capture every combination.
+  function outcomeLabel(mk) {
+    const results = otherKeys.map(ok => matrix[mk][ok]);
+    const total = results.length;
+    if (total === 0) return { text: 'unknown', adv: 'mixed' };
+    const positions = results.map(r => r.pos);
+    const best  = Math.min(...positions);
+    const worst = Math.max(...positions);
+
+    const top2In       = results.filter(r => r.pos <= 2).length;
+    const advConfIn    = results.filter(r => r.pos === 3 && r.advancesAs3rd).length;
+    const pendingIn    = results.filter(r => r.pos === 3 && r.pending3rd).length;
+    const out3In       = results.filter(r => r.pos === 3 && !r.advancesAs3rd && !r.pending3rd).length;
+    const out4In       = results.filter(r => r.pos >= 4).length;
+
+    const advancesIn = top2In + advConfIn;
+    const mustAdv = advancesIn === total;
+    const canAdv  = advancesIn > 0;
+    const allPending = pendingIn === total;
+    const anyPending = pendingIn > 0;
+
+    // Every sub-scenario advances (definitely)
+    if (mustAdv) {
+      if (worst <= 2)            return { text: 'top 2',                                       adv: 'yes' };
+      if (best === 3)            return { text: 'advance as best 3rd',                        adv: 'yes' };
+      return                            { text: 'top 2 or best 3rd — through either way',    adv: 'yes' };
+    }
+
+    // All sub-scenarios end with 3rd-place but ranking pending (other groups
+    // still to play). Real-world example: a team with poor GD has finished
+    // their group, but several other groups haven't — so we can't yet judge
+    // whether their 3rd-place stats clear the top-8 cut.
+    if (allPending) {
+      if (worst <= 3 && best === 3) return { text: 'finishes 3rd — best-3rd cut pending other groups (GD critical)', adv: 'mixed' };
+    }
+
+    // Sometimes definitely advances (not always)
+    if (canAdv) {
+      if (worst === 3 && best <= 2)
+        return { text: 'top 2 — or 3rd, advance depends on best-3rd ranking', adv: 'mixed' };
+      if (worst === 3 && best === 3)
+        return { text: '3rd — best-3rd lottery (GD critical)',                adv: 'mixed' };
+      if (worst === 4 && best <= 2)
+        return { text: 'top 2 if results break right — otherwise 3rd or 4th', adv: 'mixed' };
+      if (worst === 4 && best === 3)
+        return { text: '3rd or 4th — best-3rd lottery (GD critical)',         adv: 'mixed' };
+      return { text: 'depends on the other game', adv: 'mixed' };
+    }
+
+    // No definite advance. Distinguish pending (uncertain) from definite out.
+    if (anyPending) {
+      // Mix of pending and out outcomes
+      if (worst <= 3 && best === 3) return { text: '3rd — best-3rd cut pending (poor GD a problem)', adv: 'mixed' };
+      if (worst === 4 && best === 3) return { text: '3rd or 4th — best-3rd cut pending, GD critical', adv: 'mixed' };
+    }
+
+    // Never advances (definitively)
+    if (worst === 3 && best === 3) return { text: '3rd — outside best-8 cut',        adv: 'no' };
+    if (worst === 4 && best === 3) return { text: '3rd or 4th — outside best-8 cut', adv: 'no' };
+    if (worst === 4 && best === 4) return { text: '4th — eliminated',                adv: 'no' };
+    return { text: 'eliminated', adv: 'no' };
+  }
+
+  // Team's match already done — single dimension
+  if (teamMatchIdx === -1) {
+    const l = outcomeLabel('_');
+    if (l.adv === 'yes') {
+      if (l.text === 'top 2') return 'Through to R32.';
+      if (l.text === 'advance as best 3rd') return 'Through to R32 as best 3rd.';
+      return 'Through to R32.';
+    }
+    if (l.adv === 'no') {
+      // Don't collapse a "3rd-place finished but missed best-8" outcome into a
+      // flat "Eliminated" — the team finished 3rd, that's distinct from 4th.
+      if (l.text.startsWith('3rd')) return 'Finished 3rd — outside the best-8 cut.';
+      if (l.text.startsWith('4th')) return 'Finished 4th — eliminated.';
+      return 'Eliminated.';
+    }
+    return `Depends on the other match — ${l.text}.`;
+  }
+
+  const labels = { W: outcomeLabel('W'), D: outcomeLabel('D'), L: outcomeLabel('L') };
+
+  // Simplest "Through" message: ALL three outcomes give the same top-2 label.
+  // Otherwise we let the per-outcome breakdown show — it's more honest than
+  // claiming "every scenario" when actually the win/draw paths are top 2 and
+  // the loss path is best-3rd-with-current-standings (which a heavy GD loss
+  // could flip in real life).
+  if (labels.W.text === 'top 2' && labels.D.text === 'top 2' && labels.L.text === 'top 2') {
+    return 'Through to R32.';
+  }
+  // Completely eliminated → simple message
+  if (labels.W.adv === 'no' && labels.D.adv === 'no' && labels.L.adv === 'no') {
+    return 'Eliminated.';
+  }
+
+  // Otherwise, group by identical outcome text and join.
+  // Order: W, D, L. e.g. "Win or draw → top 2. Lose → 3rd-place lottery (GD critical)."
+  const verbs = { W: 'Win', D: 'Draw', L: 'Lose' };
+  const buckets = []; // [{ keys: [], text: '' }] preserving order
+  for (const k of ['W', 'D', 'L']) {
+    const t = labels[k].text;
+    const last = buckets[buckets.length - 1];
+    if (last && last.text === t) last.keys.push(k);
+    else buckets.push({ keys: [k], text: t });
+  }
+
+  // Merge non-adjacent identical buckets (e.g., W and L same, D different)
+  const merged = [];
+  for (const b of buckets) {
+    const existing = merged.find(m => m.text === b.text);
+    if (existing) existing.keys.push(...b.keys);
+    else merged.push({ keys: [...b.keys], text: b.text });
+  }
+
+  const parts = merged.map(b => {
+    const verb = b.keys.length === 3
+      ? 'Any result'
+      : b.keys.map(k => verbs[k]).join(' or ');
+    return `${verb} → ${b.text}`;
+  });
+  return parts.join('. ') + '.';
+}
+
+function buildLiveCardGroupBlock(m) {
+  const grp = m[7];
+  if (!'ABCDEFGHIJKL'.includes(grp)) return ''; // skip knockout matches
+  if (getMatchdayInGroup(m) !== 3) return '';
+
+  const standings = computeStandings(grp);
+  if (!standings || standings.length < 4) return '';
+
+  // Best-3rd ranking across all 12 groups (only used for the table stripes)
+  const allThirds = 'ABCDEFGHIJKL'.split('')
+    .map(g => computeStandings(g)[2]).filter(Boolean);
+  const sortedThirds = allThirds.slice().sort((a,b) => {
+    if (b.pts !== a.pts) return b.pts - a.pts;
+    const gda = a.gf - a.ga, gdb = b.gf - b.ga;
+    if (gdb !== gda) return gdb - gda;
+    return b.gf - a.gf;
+  });
+  const thisGroup3rdAdvances =
+    standings[2] && sortedThirds.findIndex(t => t.grp === grp) < 8;
+
+  const rows = standings.map((s, i) => {
+    const gd = s.gf - s.ga;
+    const gdStr = gd > 0 ? `+${gd}` : `${gd}`;
+    const pos = i + 1;
+    let stripe = '';
+    if (pos === 1 || pos === 2) stripe = 'lcg-q';
+    else if (pos === 3)        stripe = thisGroup3rdAdvances ? 'lcg-q3' : 'lcg-e3';
+    else                       stripe = 'lcg-e';
+    return `<tr class="${stripe}">
+      <td class="lcg-pos">${pos}</td>
+      <td class="lcg-team">${flag(s.team)} <span>${s.team}</span></td>
+      <td class="lcg-n">${s.p}</td>
+      <td class="lcg-n">${gdStr}</td>
+      <td class="lcg-n lcg-pts">${s.pts}</td>
+    </tr>`;
+  }).join('');
+
+  const bullets = standings.map(s => {
+    const desc = describeQualification(s.team, grp);
+    if (!desc) return '';
+    return `<li class="lcg-bul"><span class="lcg-bul-name">${flag(s.team)} ${s.team}</span><span class="lcg-bul-desc">${desc}</span></li>`;
+  }).join('');
+
+  return `<div class="lcg-block">
+    <div class="lcg-section-title">Group ${grp} · Matchday 3</div>
+    <div class="lcg-grid">
+      <table class="lcg-table">
+        <thead><tr>
+          <th></th><th></th>
+          <th class="lcg-n">P</th>
+          <th class="lcg-n">GD</th>
+          <th class="lcg-n">Pts</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <ul class="lcg-bullets">${bullets}</ul>
+    </div>
+  </div>`;
+}
+
 function renderDashboard() {
   const now = new Date();
   const el  = document.getElementById('ovDashboard');
@@ -5125,6 +5492,7 @@ function renderDashboard() {
               <span class="db-live-team">${m[6]} ${flag(m[6])}</span>
             </div>
             <div class="db-live-meta">Grp ${m[7]} · ${fmtTime(matchStartUTC(m))} AEST</div>
+            ${buildLiveCardGroupBlock(m)}
           </div>`;
         }).join('')}
       </div>
@@ -5186,6 +5554,7 @@ function renderDashboard() {
             <div class="db-next-city"><i class="ph ph-map-pin"></i> ${m[8]} · ${grp}</div>
             <div class="db-next-countdown">${countdown}</div>
           </div>
+          ${getMatchdayInGroup(m) === 3 ? buildLiveCardGroupBlock(m) : ''}
         </div>`;
       }).join('')}
     </div>`;
@@ -5453,6 +5822,14 @@ function buildDrawerHTML(matchIdx, d) {
     html+=`<div><div class="drawer-section-title"><i class="ph ph-notepad"></i> Match Preview</div><div class="drawer-ai"><p>${d.preview}</p></div></div>`;
   } else if(d.preview1 || d.preview2) {
     html+=`<div><div class="drawer-section-title"><i class="ph ph-notepad"></i> Match Preview</div><div class="drawer-ai">${d.preview1?`<p><strong>${m[5]}:</strong> ${d.preview1}</p>`:''}${d.preview2?`<p><strong>${m[6]}:</strong> ${d.preview2}</p>`:''}</div></div>`;
+  }
+
+  // Group standings + qualification context for MD3 matches (the last round).
+  // Shown for past, live, or upcoming MD3 games so you can scroll through the
+  // qualification drama any time, not only during the live broadcast window.
+  if(getMatchdayInGroup(m) === 3) {
+    const block = buildLiveCardGroupBlock(m);
+    if(block) html += `<div>${block}</div>`;
   }
   if(d.stadium_name||d.stadium_facts) html+=`<div><div class="drawer-section-title"><i class="ph ph-stadium"></i> ${d.stadium_name||m[8]}</div><div class="drawer-ai"><p>${d.stadium_facts||''}</p></div></div>`;
   if(!isTBD&&d.h2h?.length){
@@ -9879,7 +10256,8 @@ drawChampionRibbon();
     'Türkiye':         'Turkey',
     'Bosnia & Herz.':  'Bosnia-Herzegovina',
     'Czechia':         'Czech Republic',
-    'DR Congo':        'Congo DR',
+    // 'DR Congo' is the same in both MATCHES and TheSportsDB — no mapping needed.
+    // (Earlier mapping → 'Congo DR' was wrong and broke score sync for Group K.)
   };
   const TSDB_TO_NAME = Object.fromEntries(
     Object.entries(NAME_TO_TSDB).map(([k,v]) => [v, k])
@@ -9915,6 +10293,19 @@ drawChampionRibbon();
       localStorage.setItem('tsdb_season', JSON.stringify({ts: lastSeasonFetch, events: seasonEvents}));
     } catch(e) {}
     return seasonEvents;
+  }
+
+  // A match counts as "finished" only well past its end window. We add a 30 min
+  // buffer because the static end time (kickoff + matchDurMins) is approximate —
+  // delayed kickoffs and heavy stoppage time can push the real end past it.
+  // Until then, we always fetch fresh report/lineup/stats so the events list
+  // and stats grow during the game instead of freezing at the first cached snapshot.
+  function isMatchFinished(m) {
+    if (!m) return false;
+    try {
+      const endMs = matchEndUTC(m).getTime();
+      return Date.now() > endMs + 30 * 60 * 1000;
+    } catch(e) { return false; }
   }
 
   function findEvent(m) {
@@ -10003,10 +10394,12 @@ drawChampionRibbon();
     const m = MATCHES[matchIdx];
     if (!m) return null;
     const matchNum = m[12];
-    const hasScore = m[10] !== null && m[11] !== null;
 
-    // Persistent cache for finished matches
-    if (hasScore) {
+    // Persistent cache only when the match is definitively over.
+    // hasScore alone isn't enough — a live match with a goal has hasScore=true
+    // but its event list keeps growing. Caching too early freezes the events
+    // list at the first cached snapshot for the rest of the game.
+    if (isMatchFinished(m)) {
       try {
         const c = JSON.parse(localStorage.getItem(`tsdb_report_${matchNum}`) || 'null');
         if (c && c.report) return c.report;
@@ -10029,7 +10422,7 @@ drawChampionRibbon();
     const report = transformTimeline(tl, m);
     if (!report.goals.length && !report.cards.length) return null;
 
-    if (hasScore) {
+    if (isMatchFinished(m)) {
       try {
         localStorage.setItem(`tsdb_report_${matchNum}`, JSON.stringify({ts: Date.now(), report}));
       } catch(e) {}
@@ -10244,9 +10637,9 @@ drawChampionRibbon();
     const m = MATCHES[matchIdx];
     if (!m) return null;
     const matchNum = m[12];
-    const hasScore = m[10] !== null && m[11] !== null;
 
-    if (hasScore) {
+    // Only cache when match is definitively over — live games swap subs in/out.
+    if (isMatchFinished(m)) {
       try {
         const c = JSON.parse(localStorage.getItem(`tsdb_lineup_${matchNum}`) || 'null');
         if (c && c.data) return c.data;
@@ -10283,7 +10676,7 @@ drawChampionRibbon();
 
     console.log(`[TSDB] lineup match ${matchNum} (event ${evId}): ${lineup.length} entries`);
     if (!lineup.length) return null;
-    if (hasScore) {
+    if (isMatchFinished(m)) {
       try { localStorage.setItem(`tsdb_lineup_${matchNum}`, JSON.stringify({ts: Date.now(), data: lineup})); } catch(e) {}
     }
     return lineup;
@@ -10293,9 +10686,9 @@ drawChampionRibbon();
     const m = MATCHES[matchIdx];
     if (!m) return null;
     const matchNum = m[12];
-    const hasScore = m[10] !== null && m[11] !== null;
 
-    if (hasScore) {
+    // Only cache when match is over — possession/shots/etc change every minute live.
+    if (isMatchFinished(m)) {
       try {
         const c = JSON.parse(localStorage.getItem(`tsdb_stats_${matchNum}`) || 'null');
         if (c && c.data) return c.data;
@@ -10331,7 +10724,7 @@ drawChampionRibbon();
 
     console.log(`[TSDB] stats match ${matchNum} (event ${evId}): ${stats.length} entries`);
     if (!stats.length) return null;
-    if (hasScore) {
+    if (isMatchFinished(m)) {
       try { localStorage.setItem(`tsdb_stats_${matchNum}`, JSON.stringify({ts: Date.now(), data: stats})); } catch(e) {}
     }
     return stats;
@@ -11049,6 +11442,54 @@ drawChampionRibbon();
     }
   }
   setInterval(liveBannerTick, 30000);
+
+  // Refresh the currently-open fixture drawer while a live match is in progress.
+  // Without this, opening a drawer at minute 30 freezes the events list at
+  // that moment for the rest of the match. We also re-paint the score in the
+  // drawer hero, since the header is rendered statically at open time but
+  // MATCHES[10/11] gets live-updated by V2 livescore.
+  function refreshOpenDrawerIfLive() {
+    if (typeof activeFixIdx !== 'number' || activeFixIdx < 0) return;
+    const m = MATCHES[activeFixIdx];
+    if (!m) return;
+    const now = Date.now();
+    const start = matchStartUTC(m).getTime();
+    const end   = matchEndUTC(m).getTime();
+    // Refresh during the live window. Buffer 5 min past static end for FT goals/cards.
+    if (now < start || now > end + 5 * 60 * 1000) return;
+
+    // Re-fetch and re-render the match report. The wrapper around
+    // renderMatchReport also re-injects lineups + stats blocks, so a single
+    // call cascades through all three (report / lineups / stats).
+    if (typeof window.fetchMatchReport === 'function' &&
+        typeof window.renderMatchReport === 'function') {
+      window.fetchMatchReport(activeFixIdx).then(r => {
+        try { window.renderMatchReport(activeFixIdx, r); } catch(e) { console.warn(e); }
+      });
+    }
+
+    // Re-paint the score in the drawer hero from MATCHES (V2 livescore keeps
+    // these updated). Both #fixColDetail (fixtures page) and #modalDrawerBody
+    // (bracket modal) get the same .drawer-vs element if open.
+    const hs = m[10], as = m[11];
+    if (hs !== null && as !== null) {
+      document.querySelectorAll('.drawer-vs').forEach(el => {
+        // Only repaint scores in drawers actually showing this match — check
+        // the hero's surrounding team-name spans match m[5]/m[6].
+        const hero = el.closest('.drawer-match-hero');
+        if (!hero) return;
+        const teamNames = hero.querySelectorAll('.drawer-team-name');
+        if (teamNames.length < 2) return;
+        if (teamNames[0].textContent.trim() !== m[5] ||
+            teamNames[1].textContent.trim() !== m[6]) return;
+        const suffix = m[13] === 'pen' ? '<span style="font-size:.55em;opacity:.65"> P</span>'
+                     : m[13] === 'aet' ? '<span style="font-size:.55em;opacity:.65"> AET</span>'
+                     : '';
+        el.innerHTML = `${hs}–${as}${suffix}`;
+      });
+    }
+  }
+  setInterval(refreshOpenDrawerIfLive, 45000);
 
   // When dashboard re-renders (e.g. after our score sync), refresh the live banner too
   if (typeof window.renderDashboard === 'function') {
