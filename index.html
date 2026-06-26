@@ -6589,13 +6589,31 @@ slots.forEach((s,i)=>{
 // Teams that have a resolved R32 slot = qualified to knockout stage
 // A team is "known" if _teamToGroup has it AND it appears as a slot label
 const _qualifiedTeams = new Set(slots.map(s=>s.label).filter(t => t && _teamToGroup[t]));
-// Teams eliminated at group stage
+// Teams eliminated at group stage. Be careful: a "1st A" slot only resolves to
+// the actual team name once all 12 groups have completed MD3 (because slots
+// involving Best 3rd can't be assigned earlier). Until then, the slot label
+// stays as a placeholder, so the top-2 teams of decided groups are NOT in
+// _qualifiedTeams — but they're not eliminated either, they're just waiting
+// for the other groups to finish.
 const _eliminatedTeams = new Set();
+const _allGrpsComplete = 'ABCDEFGHIJKL'.split('').every(g => {
+  const gms = _MATCHES.filter(m=>m[7]===g);
+  return gms.length > 0 && gms.every(m=>m[10]!==null);
+});
 'ABCDEFGHIJKL'.split('').forEach(g => {
   const gms = _MATCHES.filter(m=>m[7]===g);
-  if (gms.length>0 && gms.every(m=>m[10]!==null)) {
-    gms.forEach(m=>{ [m[5],m[6]].forEach(t=>{ if(!_qualifiedTeams.has(t)) _eliminatedTeams.add(t); }); });
+  if (gms.length === 0 || !gms.every(m=>m[10]!==null)) return;
+  // Compute standings to know who is 3rd / 4th
+  const standings = (typeof computeStandings === 'function') ? computeStandings(g) : null;
+  if (!standings) return;
+  // 4th place is always eliminated
+  if (standings[3]?.team) _eliminatedTeams.add(standings[3].team);
+  // 3rd place: eliminated only when all groups are decided AND they don't appear
+  // in any bracket slot (i.e. they missed the best-8 cut).
+  if (_allGrpsComplete && standings[2]?.team && !_qualifiedTeams.has(standings[2].team)) {
+    _eliminatedTeams.add(standings[2].team);
   }
+  // 1st and 2nd of any decided group are never eliminated at this stage
 });
 
 
