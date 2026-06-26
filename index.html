@@ -10367,8 +10367,16 @@ drawChampionRibbon();
   }
 
   function triggerRerender() {
+    // First: recompute knockout team assignments from updated group standings.
+    // Without this, syncing scores from the API updates MATCHES[10/11] but the
+    // R32/R16/QF placeholders ("1st A", "2nd D", "Best 3rd", winner-of-X)
+    // never get filled in with the actual qualifying teams.
+    if (typeof window.computeKnockoutTeams === 'function') {
+      try { window.computeKnockoutTeams(); } catch(e) { console.warn('[TSDB] re-compute KO', e); }
+    }
     ['renderFixtures','renderCalendar','renderEPG','renderGroupTables',
-     'renderUpcomingBar','renderDashboard','renderCalendarMobile'].forEach(fn => {
+     'renderUpcomingBar','renderDashboard','renderCalendarMobile',
+     'initKnockout','initBracketDraw'].forEach(fn => {
       if (typeof window[fn] === 'function') {
         try { window[fn](); } catch(e) { console.warn('[TSDB] re-render', fn, e); }
       }
