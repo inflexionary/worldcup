@@ -3733,7 +3733,7 @@ const FIFA_3RD_TABLE={
 "BDEFHIJL":["B","D","E","H","F","I","J","L"],
 "BDEFHIKL":["B","D","E","K","F","H","I","L"],
 "BDEFHJKL":["B","D","E","K","F","H","J","L"],
-"BDEFIJKL":["B","D","E","K","F","I","J","L"],
+"BDEFIJKL":["D","F","E","K","B","I","J","L"],
 "BDEGHIJK":["B","D","E","K","I","H","G","J"],
 "BDEGHIJL":["B","D","E","H","I","J","G","L"],
 "BDEGHIKL":["B","D","E","K","I","H","G","L"],
@@ -3889,23 +3889,29 @@ function computeKnockoutTeams() {
   // Check if all groups needed for best-3rd resolution are complete
   const allGrpsComplete = 'ABCDEFGHIJKL'.split('').every(g => grpComplete(g));
 
+  // For each R32 slot pair, resolve each SIDE independently as soon as its
+  // source group is complete. Previously these were all-or-nothing: M88 needed
+  // both D and G finished, so Australia (2nd D) didn't appear in MATCHES until
+  // Group G also finished, which broke single-team path tracing on the bracket.
+  // Best-3rd sides still need allGrpsComplete because they depend on cross-group
+  // ranking; their counterpart (1st X) can still resolve early.
   const slotMap = {
-    73: () => grpComplete('A')&&grpComplete('B') ? [p2('A'), p2('B')] : null,
-    74: () => allGrpsComplete ? [p1('E'), best3rd(null,74)] : null,
-    75: () => grpComplete('F')&&grpComplete('C') ? [p1('F'), p2('C')] : null,
-    76: () => grpComplete('C')&&grpComplete('F') ? [p1('C'), p2('F')] : null,
-    77: () => allGrpsComplete ? [p1('I'), best3rd(null,77)] : null,
-    78: () => grpComplete('E')&&grpComplete('I') ? [p2('E'), p2('I')] : null,
-    79: () => allGrpsComplete ? [p1('A'), best3rd(null,79)] : null,
-    80: () => allGrpsComplete ? [p1('L'), best3rd(null,80)] : null,
-    81: () => allGrpsComplete ? [p1('D'), best3rd(null,81)] : null,
-    82: () => allGrpsComplete ? [p1('G'), best3rd(null,82)] : null,
-    83: () => grpComplete('K')&&grpComplete('L') ? [p2('K'), p2('L')] : null,
-    84: () => grpComplete('H')&&grpComplete('J') ? [p1('H'), p2('J')] : null,
-    85: () => allGrpsComplete ? [p1('B'), best3rd(null,85)] : null,
-    86: () => grpComplete('J')&&grpComplete('H') ? [p1('J'), p2('H')] : null,
-    87: () => allGrpsComplete ? [p1('K'), best3rd(null,87)] : null,
-    88: () => grpComplete('D')&&grpComplete('G') ? [p2('D'), p2('G')] : null,
+    73: () => [grpComplete('A') ? p2('A') : '2nd A',  grpComplete('B') ? p2('B') : '2nd B'],
+    74: () => [grpComplete('E') ? p1('E') : '1st E',  allGrpsComplete ? best3rd(null,74) : 'Best 3rd'],
+    75: () => [grpComplete('F') ? p1('F') : '1st F',  grpComplete('C') ? p2('C') : '2nd C'],
+    76: () => [grpComplete('C') ? p1('C') : '1st C',  grpComplete('F') ? p2('F') : '2nd F'],
+    77: () => [grpComplete('I') ? p1('I') : '1st I',  allGrpsComplete ? best3rd(null,77) : 'Best 3rd'],
+    78: () => [grpComplete('E') ? p2('E') : '2nd E',  grpComplete('I') ? p2('I') : '2nd I'],
+    79: () => [grpComplete('A') ? p1('A') : '1st A',  allGrpsComplete ? best3rd(null,79) : 'Best 3rd'],
+    80: () => [grpComplete('L') ? p1('L') : '1st L',  allGrpsComplete ? best3rd(null,80) : 'Best 3rd'],
+    81: () => [grpComplete('D') ? p1('D') : '1st D',  allGrpsComplete ? best3rd(null,81) : 'Best 3rd'],
+    82: () => [grpComplete('G') ? p1('G') : '1st G',  allGrpsComplete ? best3rd(null,82) : 'Best 3rd'],
+    83: () => [grpComplete('K') ? p2('K') : '2nd K',  grpComplete('L') ? p2('L') : '2nd L'],
+    84: () => [grpComplete('H') ? p1('H') : '1st H',  grpComplete('J') ? p2('J') : '2nd J'],
+    85: () => [grpComplete('B') ? p1('B') : '1st B',  allGrpsComplete ? best3rd(null,85) : 'Best 3rd'],
+    86: () => [grpComplete('J') ? p1('J') : '1st J',  grpComplete('H') ? p2('H') : '2nd H'],
+    87: () => [grpComplete('K') ? p1('K') : '1st K',  allGrpsComplete ? best3rd(null,87) : 'Best 3rd'],
+    88: () => [grpComplete('D') ? p2('D') : '2nd D',  grpComplete('G') ? p2('G') : '2nd G'],
   };
 
   MATCHES.forEach((m, idx) => {
@@ -6589,13 +6595,12 @@ slots.forEach((s,i)=>{
 // Teams that have a resolved R32 slot = qualified to knockout stage
 // A team is "known" if _teamToGroup has it AND it appears as a slot label
 const _qualifiedTeams = new Set(slots.map(s=>s.label).filter(t => t && _teamToGroup[t]));
-// Teams eliminated at group stage. Be careful: a "1st A" slot only resolves to
-// the actual team name once all 12 groups have completed MD3 (because slots
-// involving Best 3rd can't be assigned earlier). Until then, the slot label
-// stays as a placeholder, so the top-2 teams of decided groups are NOT in
-// _qualifiedTeams — but they're not eliminated either, they're just waiting
-// for the other groups to finish.
-const _eliminatedTeams = new Set();
+// Some R32 slots stay as placeholders ("1st D", "Best 3rd") until every group
+// has finished MD3, because they pair with a best-3rd team that can't be
+// resolved earlier. So a group could be fully played out — top-2 confirmed
+// through — and yet not appear in any slot label yet. Explicitly mark top-2
+// of every decided group as qualified so the perimeter group boxes can render
+// them in the bright/highlighted style.
 const _allGrpsComplete = 'ABCDEFGHIJKL'.split('').every(g => {
   const gms = _MATCHES.filter(m=>m[7]===g);
   return gms.length > 0 && gms.every(m=>m[10]!==null);
@@ -6603,7 +6608,19 @@ const _allGrpsComplete = 'ABCDEFGHIJKL'.split('').every(g => {
 'ABCDEFGHIJKL'.split('').forEach(g => {
   const gms = _MATCHES.filter(m=>m[7]===g);
   if (gms.length === 0 || !gms.every(m=>m[10]!==null)) return;
-  // Compute standings to know who is 3rd / 4th
+  const standings = (typeof computeStandings === 'function') ? computeStandings(g) : null;
+  if (!standings) return;
+  if (standings[0]?.team) _qualifiedTeams.add(standings[0].team);
+  if (standings[1]?.team) _qualifiedTeams.add(standings[1].team);
+});
+// Teams eliminated at group stage. Top 2 of any decided group are never
+// eliminated (covered above). 4th place is always eliminated. 3rd is
+// conditional — only once every group has finished MD3 and they didn't
+// appear in any bracket slot.
+const _eliminatedTeams = new Set();
+'ABCDEFGHIJKL'.split('').forEach(g => {
+  const gms = _MATCHES.filter(m=>m[7]===g);
+  if (gms.length === 0 || !gms.every(m=>m[10]!==null)) return;
   const standings = (typeof computeStandings === 'function') ? computeStandings(g) : null;
   if (!standings) return;
   // 4th place is always eliminated
@@ -6613,7 +6630,6 @@ const _allGrpsComplete = 'ABCDEFGHIJKL'.split('').every(g => {
   if (_allGrpsComplete && standings[2]?.team && !_qualifiedTeams.has(standings[2].team)) {
     _eliminatedTeams.add(standings[2].team);
   }
-  // 1st and 2nd of any decided group are never eliminated at this stage
 });
 
 
